@@ -62,13 +62,19 @@ mrb_zsys_debug(mrb_state *mrb, mrb_value self)
 }
 
 static void
-mrb_zsock_destroy(mrb_state *mrb, void *p)
+mrb_zsock_actor_destroy(mrb_state *mrb, void *p)
 {
-  zsock_destroy((zsock_t **) &p);
+  if (p) {
+    if (zsock_is(p))
+      zsock_destroy((zsock_t **) &p);
+    else
+      if (zactor_is(p))
+        zactor_destroy((zactor_t **) &p);
+  }
 }
 
-static const struct mrb_data_type mrb_zsock_type = {
-  "$i_mrb_zsock_type", mrb_zsock_destroy
+static const struct mrb_data_type mrb_zsock_actor_type = {
+  "$i_mrb_zsock_actor_type", mrb_zsock_actor_destroy
 };
 
 static mrb_value
@@ -88,12 +94,12 @@ mrb_zsock_new_stream(mrb_state *mrb, mrb_value self)
 
   zsock_t *zsock = zsock_new_stream(endpoint);
   if (zsock) {
-    mrb_value zsock_obj = mrb_obj_new(mrb, mrb_class_get_under(mrb,
+    mrb_value zsock_actor_obj = mrb_obj_new(mrb, mrb_class_get_under(mrb,
       mrb_module_get(mrb, "CZMQ"), "Zsock"), 0, NULL);
 
-    mrb_data_init(zsock_obj, zsock, &mrb_zsock_type);
+    mrb_data_init(zsock_actor_obj, zsock, &mrb_zsock_actor_type);
 
-    return zsock_obj;
+    return zsock_actor_obj;
   }
   else
     mrb_raise(mrb, E_CZMQ_ERROR, zmq_strerror(zmq_errno()));
@@ -109,7 +115,10 @@ mrb_zsock_signal(mrb_state *mrb, mrb_value self)
   if (status < 0 ||status > UCHAR_MAX)
     mrb_raise(mrb, E_RANGE_ERROR, "status is out of range");
 
-  return mrb_fixnum_value(zsock_signal((zsock_t *) DATA_PTR(self), (byte) status));
+  if (zsock_signal((zsock_t *) DATA_PTR(self), (byte) status) == 0)
+    return self;
+  else
+    mrb_raise(mrb, E_CZMQ_ERROR, zmq_strerror(zmq_errno()));
 }
 
 static mrb_value
@@ -313,16 +322,16 @@ mrb_zloop_reader_fn(zloop_t *loop, zsock_t *reader, void *arg)
 static mrb_value
 mrb_zloop_reader(mrb_state *mrb, mrb_value self)
 {
-  mrb_value zsock_obj, handler;
+  mrb_value zsock_actor_obj, handler;
 
-  mrb_get_args(mrb, "o&", &zsock_obj, &handler);
-  zsock_t *zsock = DATA_CHECK_GET_PTR(mrb, zsock_obj, &mrb_zsock_type, zsock_t);
+  mrb_get_args(mrb, "o&", &zsock_actor_obj, &handler);
+  void *zsock = mrb_data_check_get_ptr(mrb, zsock_actor_obj, &mrb_zsock_actor_type);
 
   mrb_zloop_arg_t *zloop_arg = (mrb_zloop_arg_t *) mrb_calloc(mrb, 1,
     sizeof(mrb_zloop_arg_t));
   zloop_arg->mrb = mrb;
   zloop_arg->handler = handler;
-  zloop_arg->extra = zsock_obj;
+  zloop_arg->extra = zsock_actor_obj;
 
   if (zloop_reader((zloop_t *) DATA_PTR(self), zsock, mrb_zloop_reader_fn,
     zloop_arg) == 0) {
@@ -330,7 +339,7 @@ mrb_zloop_reader(mrb_state *mrb, mrb_value self)
       mrb_class_get_under(mrb, mrb_module_get(mrb, "CZMQ"), "Callback"),
       zloop_arg, &mrb_czmq_callback_arg_type));
 
-    mrb_ary_push(mrb, mrb_iv_get(mrb, zsock_obj,
+    mrb_ary_push(mrb, mrb_iv_get(mrb, zsock_actor_obj,
       mrb_intern_lit(mrb, "readers")), callback);
 
     return self;
@@ -344,13 +353,13 @@ mrb_zloop_reader(mrb_state *mrb, mrb_value self)
 static mrb_value
 mrb_zloop_reader_end(mrb_state *mrb, mrb_value self)
 {
-  mrb_value zsock_obj;
+  mrb_value zsock_actor_obj;
 
-  mrb_get_args(mrb, "o", &zsock_obj);
+  mrb_get_args(mrb, "o", &zsock_actor_obj);
 
-  zsock_t *zsock = DATA_CHECK_GET_PTR(mrb, zsock_obj, &mrb_zsock_type, zsock_t);
+  void *zsock = mrb_data_check_get_ptr(mrb, zsock_actor_obj, &mrb_zsock_actor_type);
 
-  mrb_ary_clear(mrb, mrb_iv_get(mrb, zsock_obj,
+  mrb_ary_clear(mrb, mrb_iv_get(mrb, zsock_actor_obj,
       mrb_intern_lit(mrb, "readers")));
   zloop_reader_end((zloop_t *) DATA_PTR(self), zsock);
 
@@ -424,11 +433,11 @@ mrb_zframe_new(mrb_state *mrb, mrb_value self)
 static mrb_value
 mrb_zframe_recv(mrb_state *mrb, mrb_value self)
 {
-  zsock_t *zsock;
+  void *zsock_actor;
 
-  mrb_get_args(mrb, "d", &zsock, &mrb_zsock_type);
+  mrb_get_args(mrb, "d", &zsock_actor, &mrb_zsock_actor_type);
 
-  zframe_t *zframe = zframe_recv(zsock);
+  zframe_t *zframe = zframe_recv(zsock_actor);
   if (zframe)
     return mrb_obj_value(mrb_data_object_alloc(mrb, mrb_class_get_under(mrb,
       mrb_module_get(mrb, "CZMQ"), "Zframe"), zframe, &mrb_zframe_type));
@@ -476,12 +485,12 @@ mrb_zframe_reset(mrb_state *mrb, mrb_value self)
 static mrb_value
 mrb_zframe_send(mrb_state *mrb, mrb_value self)
 {
-  zsock_t *zsock;
+  void *zsock_actor;
   mrb_int flags = 0;
 
-  mrb_get_args(mrb, "d|i", &zsock, &mrb_zsock_type, &flags);
+  mrb_get_args(mrb, "d|i", &zsock_actor, &mrb_zsock_actor_type, &flags);
 
-  if (zframe_send((zframe_t **) &DATA_PTR(self), zsock, flags) == 0)
+  if (zframe_send((zframe_t **) &DATA_PTR(self), zsock_actor, flags) == 0)
     return mrb_true_value();
   else
     mrb_raise(mrb, E_CZMQ_ERROR, zmq_strerror(zmq_errno()));
