@@ -115,7 +115,7 @@ mrb_zsock_signal(mrb_state *mrb, mrb_value self)
   if (status < 0 ||status > UCHAR_MAX)
     mrb_raise(mrb, E_RANGE_ERROR, "status is out of range");
 
-  if (zsock_signal((zsock_t *) DATA_PTR(self), (byte) status) == 0)
+  if (zsock_signal(DATA_PTR(self), (byte) status) == 0)
     return self;
   else
     mrb_raise(mrb, E_CZMQ_ERROR, zmq_strerror(zmq_errno()));
@@ -124,7 +124,7 @@ mrb_zsock_signal(mrb_state *mrb, mrb_value self)
 static mrb_value
 mrb_zsock_wait(mrb_state *mrb, mrb_value self)
 {
-  return mrb_fixnum_value(zsock_wait((zsock_t *) DATA_PTR(self)));
+  return mrb_fixnum_value(zsock_wait(DATA_PTR(self)));
 }
 
 static void
@@ -505,10 +505,98 @@ mrb_zframe_more(mrb_state *mrb, mrb_value self)
     return mrb_false_value();
 }
 
+static mrb_value
+mrb_zactor_new_zauth(mrb_state *mrb, mrb_value self)
+{
+  zactor_t *zactor = zactor_new(zauth, NULL);
+  if (zactor) {
+    mrb_value zsock_actor_obj = mrb_obj_new(mrb, mrb_class_get_under(mrb,
+      mrb_module_get(mrb, "CZMQ"), "Zsock"), 0, NULL);
+
+    mrb_data_init(zsock_actor_obj, zactor, &mrb_zsock_actor_type);
+
+    return zsock_actor_obj;
+  }
+  else
+    mrb_raise(mrb, E_CZMQ_ERROR, zmq_strerror(zmq_errno()));
+}
+
+static mrb_value
+mrb_zactor_new_zbeacon(mrb_state *mrb, mrb_value self)
+{
+  zactor_t *zactor = zactor_new(zbeacon, NULL);
+  if (zactor) {
+    mrb_value zsock_actor_obj = mrb_obj_new(mrb, mrb_class_get_under(mrb,
+      mrb_module_get(mrb, "CZMQ"), "Zsock"), 0, NULL);
+
+    mrb_data_init(zsock_actor_obj, zactor, &mrb_zsock_actor_type);
+
+    return zsock_actor_obj;
+  }
+  else
+    mrb_raise(mrb, E_CZMQ_ERROR, zmq_strerror(zmq_errno()));
+}
+
+static mrb_value
+mrb_zactor_new_zgossip(mrb_state *mrb, mrb_value self)
+{
+  char *prefix;
+
+  mrb_get_args(mrb, "z", &prefix);
+
+  zactor_t *zactor = zactor_new(zgossip, prefix);
+  if (zactor) {
+    mrb_value zsock_actor_obj = mrb_obj_new(mrb, mrb_class_get_under(mrb,
+      mrb_module_get(mrb, "CZMQ"), "Zsock"), 0, NULL);
+
+    mrb_data_init(zsock_actor_obj, zactor, &mrb_zsock_actor_type);
+
+    return zsock_actor_obj;
+  }
+  else
+    mrb_raise(mrb, E_CZMQ_ERROR, zmq_strerror(zmq_errno()));
+}
+
+static mrb_value
+mrb_zactor_new_zmonitor(mrb_state *mrb, mrb_value self)
+{
+  void *socket;
+
+  mrb_get_args(mrb, "d", &socket, &mrb_zsock_actor_type);
+
+  zactor_t *zactor = zactor_new(zmonitor, socket);
+  if (zactor) {
+    mrb_value zsock_actor_obj = mrb_obj_new(mrb, mrb_class_get_under(mrb,
+      mrb_module_get(mrb, "CZMQ"), "Zsock"), 0, NULL);
+
+    mrb_data_init(zsock_actor_obj, zactor, &mrb_zsock_actor_type);
+
+    return zsock_actor_obj;
+  }
+  else
+    mrb_raise(mrb, E_CZMQ_ERROR, zmq_strerror(zmq_errno()));
+}
+
+static mrb_value
+mrb_zactor_new_zproxy(mrb_state *mrb, mrb_value self)
+{
+  zactor_t *zactor = zactor_new(zproxy, NULL);
+  if (zactor) {
+    mrb_value zsock_actor_obj = mrb_obj_new(mrb, mrb_class_get_under(mrb,
+      mrb_module_get(mrb, "CZMQ"), "Zsock"), 0, NULL);
+
+    mrb_data_init(zsock_actor_obj, zactor, &mrb_zsock_actor_type);
+
+    return zsock_actor_obj;
+  }
+  else
+    mrb_raise(mrb, E_CZMQ_ERROR, zmq_strerror(zmq_errno()));
+}
+
 void
 mrb_mruby_czmq_gem_init(mrb_state* mrb) {
   struct RClass *czmq_mod, *zsys_mod, *zsock_class,
-  *callback_class, *zloop_class, *zframe_class;
+  *callback_class, *zloop_class, *zframe_class, *zactor_class;
 
   czmq_mod = mrb_define_module(mrb, "CZMQ");
   mrb_define_class_under(mrb, czmq_mod, "Error", E_RUNTIME_ERROR);
@@ -557,6 +645,13 @@ mrb_mruby_czmq_gem_init(mrb_state* mrb) {
   mrb_define_method(mrb, zframe_class, "reset" ,        mrb_zframe_reset,   MRB_ARGS_REQ(1));
   mrb_define_method(mrb, zframe_class, "send" ,         mrb_zframe_send,    MRB_ARGS_ARG(1, 1));
   mrb_define_method(mrb, zframe_class, "more?" ,        mrb_zframe_more,    MRB_ARGS_NONE());
+
+  zactor_class = mrb_define_class_under(mrb, czmq_mod, "Zactor", mrb->object_class);
+  mrb_define_module_function(mrb, zactor_class, "new_auth",     mrb_zactor_new_zauth,     MRB_ARGS_NONE());
+  mrb_define_module_function(mrb, zactor_class, "new_beacon",   mrb_zactor_new_zbeacon,   MRB_ARGS_NONE());
+  mrb_define_module_function(mrb, zactor_class, "new_gossip",   mrb_zactor_new_zgossip,   MRB_ARGS_REQ(1));
+  mrb_define_module_function(mrb, zactor_class, "new_monitor",  mrb_zactor_new_zmonitor,  MRB_ARGS_REQ(1));
+  mrb_define_module_function(mrb, zactor_class, "new_proxy",    mrb_zactor_new_zproxy,    MRB_ARGS_NONE());
 
   if (zsys_init() == NULL)
     mrb_raise(mrb, E_CZMQ_ERROR, zmq_strerror(zmq_errno()));
