@@ -593,10 +593,168 @@ mrb_zactor_new_zproxy(mrb_state *mrb, mrb_value self)
     mrb_raise(mrb, E_CZMQ_ERROR, zmq_strerror(zmq_errno()));
 }
 
+static void
+mrb_zconfig_destroy(mrb_state *mrb, void *p)
+{
+  zconfig_destroy((zconfig_t **) &p);
+}
+
+static const struct mrb_data_type mrb_zconfig_type = {
+  "$i_mrb_zconfig_type", mrb_zconfig_destroy
+};
+
+static mrb_value
+mrb_zconfig_new(mrb_state *mrb, mrb_value self)
+{
+  char *name;
+  zconfig_t *parent = NULL, *config;
+
+  mrb_get_args(mrb, "z|d", &name, &parent, &mrb_zconfig_type);
+
+  config = zconfig_new (name, parent);
+  if (config)
+    mrb_data_init(self, config, &mrb_zconfig_type);
+  else
+    mrb_raise(mrb, E_CZMQ_ERROR, zmq_strerror(zmq_errno()));
+
+  return self;
+}
+
+static mrb_value
+mrb_zconfig_name(mrb_state *mrb, mrb_value self)
+{
+  char *name = zconfig_name((zconfig_t *) DATA_PTR(self));
+
+  if (name)
+    return mrb_str_new_static(mrb, name, strlen(name));
+  else
+    return mrb_nil_value();
+}
+
+static mrb_value
+mrb_zconfig_value(mrb_state *mrb, mrb_value self)
+{
+  char *value = zconfig_value((zconfig_t *) DATA_PTR(self));
+
+  if (value)
+    return mrb_str_new_static(mrb, value, strlen(value));
+  else
+    return mrb_nil_value();
+}
+
+static mrb_value
+mrb_zconfig_put(mrb_state *mrb, mrb_value self)
+{
+  char *path, *value;
+
+  mrb_get_args(mrb, "zz", &path, &value);
+
+  zconfig_put((zconfig_t *) DATA_PTR(self), path, value);
+
+  return self;
+}
+
+static mrb_value
+mrb_zconfig_set_name(mrb_state *mrb, mrb_value self)
+{
+  char *name;
+
+  mrb_get_args(mrb, "z", &name);
+
+  zconfig_set_name((zconfig_t *) DATA_PTR(self), name);
+
+  return self;
+}
+
+static mrb_value
+mrb_zconfig_set_value(mrb_state *mrb, mrb_value self)
+{
+  char *value;
+
+  mrb_get_args(mrb, "z", &value);
+
+  zconfig_set_value((zconfig_t *) DATA_PTR(self), "%s", value);
+
+  return self;
+}
+
+static mrb_value
+mrb_zconfig_resolve(mrb_state *mrb, mrb_value self)
+{
+  char *path, *default_value = NULL, *value;
+
+  mrb_get_args(mrb, "z|z", &path, &default_value);
+
+  value = zconfig_resolve((zconfig_t *) DATA_PTR(self), path, default_value);
+
+  if (value)
+    return mrb_str_new_static(mrb, value, strlen(value));
+  else
+    return mrb_nil_value();
+}
+
+static mrb_value
+mrb_zconfig_load(mrb_state *mrb, mrb_value self)
+{
+  char *filename;
+
+  mrb_get_args(mrb, "z", &filename);
+
+  zconfig_t *zconfig = zconfig_load(filename);
+
+  if (zconfig)
+    return mrb_obj_value(mrb_data_object_alloc(mrb, mrb_class_get_under(mrb,
+      mrb_module_get(mrb, "CZMQ"), "Zconfig"), zconfig, &mrb_zconfig_type));
+  else
+    mrb_raise(mrb, E_CZMQ_ERROR, zmq_strerror(zmq_errno()));
+}
+
+static mrb_value
+mrb_zconfig_save(mrb_state *mrb, mrb_value self)
+{
+  char *filename;
+
+  mrb_get_args(mrb, "z", &filename);
+
+  if (zconfig_save((zconfig_t *) DATA_PTR(self), filename) == 0)
+    return self;
+  else
+    mrb_raise(mrb, E_CZMQ_ERROR, zmq_strerror(zmq_errno()));
+}
+
+static mrb_value
+mrb_zconfig_filename(mrb_state *mrb, mrb_value self)
+{
+  const char *filename = zconfig_filename((zconfig_t *) DATA_PTR(self));
+
+  if (filename)
+    return mrb_str_new_static(mrb, filename, strlen(filename));
+  else
+    return mrb_nil_value();
+}
+
+static mrb_value
+mrb_zconfig_reload(mrb_state *mrb, mrb_value self)
+{
+  if (zconfig_reload((zconfig_t **) &DATA_PTR(self)) == 0)
+    return self;
+  else
+    mrb_raise(mrb, E_CZMQ_ERROR, zmq_strerror(zmq_errno()));
+}
+
+static mrb_value
+mrb_zconfig_has_changed(mrb_state *mrb, mrb_value self)
+{
+  if (zconfig_has_changed((zconfig_t *) DATA_PTR(self)) == true)
+    return mrb_true_value();
+  else
+    return mrb_false_value();
+}
+
 void
 mrb_mruby_czmq_gem_init(mrb_state* mrb) {
   struct RClass *czmq_mod, *zsys_mod, *zsock_class,
-  *callback_class, *zloop_class, *zframe_class, *zactor_class;
+  *callback_class, *zloop_class, *zframe_class, *zactor_class, *zconfig_class;
 
   czmq_mod = mrb_define_module(mrb, "CZMQ");
   mrb_define_class_under(mrb, czmq_mod, "Error", E_RUNTIME_ERROR);
@@ -652,6 +810,21 @@ mrb_mruby_czmq_gem_init(mrb_state* mrb) {
   mrb_define_module_function(mrb, zactor_class, "new_gossip",   mrb_zactor_new_zgossip,   MRB_ARGS_REQ(1));
   mrb_define_module_function(mrb, zactor_class, "new_monitor",  mrb_zactor_new_zmonitor,  MRB_ARGS_REQ(1));
   mrb_define_module_function(mrb, zactor_class, "new_proxy",    mrb_zactor_new_zproxy,    MRB_ARGS_NONE());
+
+  zconfig_class = mrb_define_class_under(mrb, czmq_mod, "Zconfig", mrb->object_class);
+  MRB_SET_INSTANCE_TT(zconfig_class, MRB_TT_DATA);
+  mrb_define_method(mrb, zconfig_class, "initialize", mrb_zconfig_new,          MRB_ARGS_ARG(1, 1));
+  mrb_define_method(mrb, zconfig_class, "name",       mrb_zconfig_name,         MRB_ARGS_NONE());
+  mrb_define_method(mrb, zconfig_class, "value",      mrb_zconfig_value,        MRB_ARGS_NONE());
+  mrb_define_method(mrb, zconfig_class, "put",        mrb_zconfig_put,          MRB_ARGS_REQ(2));
+  mrb_define_method(mrb, zconfig_class, "name=",      mrb_zconfig_set_name,     MRB_ARGS_REQ(1));
+  mrb_define_method(mrb, zconfig_class, "value=",     mrb_zconfig_set_value,    MRB_ARGS_REQ(1));
+  mrb_define_method(mrb, zconfig_class, "resolve",    mrb_zconfig_resolve,      MRB_ARGS_ARG(1, 1));
+  mrb_define_module_function(mrb, zconfig_class, "load",  mrb_zconfig_load,     MRB_ARGS_REQ(1));
+  mrb_define_method(mrb, zconfig_class, "save",       mrb_zconfig_save,         MRB_ARGS_REQ(1));
+  mrb_define_method(mrb, zconfig_class, "filename",   mrb_zconfig_filename,     MRB_ARGS_NONE());
+  mrb_define_method(mrb, zconfig_class, "reload",     mrb_zconfig_reload,       MRB_ARGS_NONE());
+  mrb_define_method(mrb, zconfig_class, "changed?",   mrb_zconfig_has_changed,  MRB_ARGS_NONE());
 
   if (zsys_init() == NULL)
     mrb_raise(mrb, E_CZMQ_ERROR, zmq_strerror(zmq_errno()));
