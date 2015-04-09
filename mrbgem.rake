@@ -2,5 +2,5 @@
   spec.license = 'Apache-2'
   spec.author  = 'Hendrik Beskow'
   spec.summary = 'mruby bindings for czmq'
-  spec.linker.libraries << 'zyre' << 'czmq' << 'zmq'
+  spec.linker.libraries << 'czmq' << 'zmq'
 end
