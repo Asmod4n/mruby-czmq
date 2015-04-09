@@ -119,8 +119,8 @@ mrb_zsock_new_stream(mrb_state *mrb, mrb_value self)
 
   zsock = zsock_new_stream(endpoint);
   if (zsock)
-    return mrb_obj_value(mrb_data_object_alloc(mrb, mrb_class_get_under(mrb,
-      mrb_module_get(mrb, "CZMQ"), "Zsock"), zsock, &mrb_zsock_actor_type));
+    return mrb_obj_value(mrb_data_object_alloc(mrb, mrb_class_ptr(self),
+      zsock, &mrb_zsock_actor_type));
   else
     mrb_raise(mrb, E_CZMQ_ERROR, zmq_strerror(zmq_errno()));
 }
@@ -200,9 +200,7 @@ mrb_zsock_attach(mrb_state *mrb, mrb_value self)
 static mrb_value
 mrb_zsock_type_str(mrb_state *mrb, mrb_value self)
 {
-  const char *type;
-
-  type = zsock_type_str((zsock_t *) DATA_PTR(self));
+  const char *type = zsock_type_str((zsock_t *) DATA_PTR(self));
 
   return mrb_str_new_static(mrb, type, strlen(type));
 }
@@ -232,9 +230,7 @@ mrb_zsock_wait(mrb_state *mrb, mrb_value self)
 static mrb_value
 mrb_zsock_endpoint(mrb_state *mrb, mrb_value self)
 {
-  const char *endpoint;
-
-  endpoint = zsock_endpoint((zsock_t *) DATA_PTR(self));
+  const char *endpoint = zsock_endpoint((zsock_t *) DATA_PTR(self));
   if(endpoint)
     return mrb_str_new_static(mrb, endpoint, strlen(endpoint));
   else
@@ -338,8 +334,8 @@ mrb_zframe_recv(mrb_state *mrb, mrb_value self)
 
   zframe = zframe_recv(zsock_actor);
   if (zframe)
-    return mrb_obj_value(mrb_data_object_alloc(mrb, mrb_class_get_under(mrb,
-      mrb_module_get(mrb, "CZMQ"), "Zframe"), zframe, &mrb_zframe_type));
+    return mrb_obj_value(mrb_data_object_alloc(mrb, mrb_class_ptr(self),
+      zframe, &mrb_zframe_type));
   else
     mrb_raise(mrb, E_CZMQ_ERROR, zmq_strerror(zmq_errno()));
 }
@@ -365,7 +361,8 @@ mrb_zframe_to_str(mrb_state *mrb, mrb_value self)
 {
   zframe_t *zframe = (zframe_t *) DATA_PTR(self);
 
-  return mrb_str_new_static(mrb, (const char *) zframe_data(zframe), zframe_size(zframe));
+  return mrb_str_new_static(mrb, (const char *) zframe_data(zframe),
+    zframe_size(zframe));
 }
 
 static mrb_value
@@ -410,14 +407,11 @@ mrb_zframe_more(mrb_state *mrb, mrb_value self)
 static mrb_value
 mrb_zsock_recvx(mrb_state *mrb, mrb_value self)
 {
-  void *zsock_actor;
   zmsg_t *msg;
   mrb_value msgs;
   zframe_t *zframe;
 
-  mrb_get_args(mrb, "d", &zsock_actor, &mrb_zsock_actor_type);
-
-  msg = zmsg_recv(zsock_actor);
+  msg = zmsg_recv(DATA_PTR(self));
   if (msg) {
     msgs = mrb_ary_new_capa(mrb, zmsg_size(msg));
     zframe = zmsg_pop(msg);
@@ -513,12 +507,12 @@ static const struct mrb_data_type mrb_zconfig_type = {
 static mrb_value
 mrb_zconfig_new(mrb_state *mrb, mrb_value self)
 {
-  char *name;
-  zconfig_t *parent = NULL, *config;
+  char *name = "root";
+  zconfig_t *config;
 
-  mrb_get_args(mrb, "z|d", &name, &parent, &mrb_zconfig_type);
+  mrb_get_args(mrb, "|z", &name);
 
-  config = zconfig_new (name, parent);
+  config = zconfig_new (name, NULL);
   if (config)
     mrb_data_init(self, config, &mrb_zconfig_type);
   else
@@ -598,6 +592,41 @@ mrb_zconfig_resolve(mrb_state *mrb, mrb_value self)
 }
 
 static mrb_value
+mrb_zconfig_set_comment(mrb_state *mrb, mrb_value self)
+{
+  char *comment;
+
+  mrb_get_args(mrb, "z", &comment);
+
+  zconfig_set_comment((zconfig_t *) DATA_PTR(self), "%s", comment);
+
+  return self;
+}
+
+static mrb_value
+mrb_zconfig_comments(mrb_state *mrb, mrb_value self)
+{
+  zlist_t *comments;
+  mrb_value comments_obj;
+  const char *s;
+
+  comments = zconfig_comments((zconfig_t *) DATA_PTR(self));
+  if (comments) {
+    comments_obj = mrb_ary_new_capa(mrb, zlist_size(comments));
+
+    s = (const char *) zlist_first(comments);
+    while (s) {
+      mrb_ary_push(mrb, comments_obj, mrb_str_new_static(mrb, s, strlen(s)));
+      s = (const char *) zlist_next(comments);
+    }
+
+    return comments_obj;
+  }
+  else
+    return mrb_nil_value();
+}
+
+static mrb_value
 mrb_zconfig_load(mrb_state *mrb, mrb_value self)
 {
   char *filename;
@@ -607,8 +636,8 @@ mrb_zconfig_load(mrb_state *mrb, mrb_value self)
 
   zconfig = zconfig_load(filename);
   if (zconfig)
-    return mrb_obj_value(mrb_data_object_alloc(mrb, mrb_class_get_under(mrb,
-      mrb_module_get(mrb, "CZMQ"), "Zconfig"), zconfig, &mrb_zconfig_type));
+    return mrb_obj_value(mrb_data_object_alloc(mrb, mrb_class_ptr(self),
+      zconfig, &mrb_zconfig_type));
   else
     mrb_raise(mrb, E_CZMQ_ERROR, zmq_strerror(zmq_errno()));
 }
@@ -682,7 +711,8 @@ mrb_zpoller_new(mrb_state *mrb, mrb_value self)
     sockets = mrb_hash_new(mrb);
     mrb_iv_set(mrb, self, mrb_intern_lit(mrb, "sockets"), sockets);
     mrb_assert(snprintf(poller_addr, sizeof(poller_addr), "%p", zsocket) < sizeof(poller_addr));
-    mrb_hash_set(mrb, sockets, mrb_str_new_cstr(mrb, poller_addr), zsock_actor);
+    mrb_hash_set(mrb, sockets, mrb_str_new_cstr(mrb, poller_addr),
+      zsock_actor);
   }
   else
     mrb_raise(mrb, E_CZMQ_ERROR, zmq_strerror(zmq_errno()));
@@ -703,8 +733,8 @@ mrb_zpoller_add(mrb_state *mrb, mrb_value self)
 
   if (zpoller_add((zpoller_t *) DATA_PTR(self), zsocket) == 0) {
     mrb_assert(snprintf(poller_addr, sizeof(poller_addr), "%p", zsocket) < sizeof(poller_addr));
-    mrb_hash_set(mrb, mrb_iv_get(mrb, self, mrb_intern_lit(mrb, "sockets")),
-      mrb_str_new_cstr(mrb, poller_addr), zsock_actor);
+    mrb_hash_set(mrb, mrb_iv_get(mrb, self, mrb_intern_lit(mrb,
+      "sockets")), mrb_str_new_cstr(mrb, poller_addr), zsock_actor);
   }
   else
     mrb_raise(mrb, E_CZMQ_ERROR, zmq_strerror(zmq_errno()));
@@ -725,8 +755,8 @@ mrb_zpoller_remove(mrb_state *mrb, mrb_value self)
 
   if (zpoller_remove((zpoller_t *) DATA_PTR(self), zsocket) == 0) {
     mrb_assert(snprintf(poller_addr, sizeof(poller_addr), "%p", zsocket) < sizeof(poller_addr));
-    mrb_hash_delete_key(mrb, mrb_iv_get(mrb, self, mrb_intern_lit(mrb, "sockets")),
-      mrb_str_new_cstr(mrb, poller_addr));
+    mrb_hash_delete_key(mrb, mrb_iv_get(mrb, self, mrb_intern_lit(mrb,
+      "sockets")),  mrb_str_new_cstr(mrb, poller_addr));
     return self;
   }
   else
@@ -738,7 +768,7 @@ mrb_zpoller_wait(mrb_state *mrb, mrb_value self)
 {
   mrb_int timeout = -1;
   void *zsock_actor;
-  char poller_addr[sizeof(zsock_actor) * 2 + 3];
+  char poller_addr[sizeof(uintptr_t) * 2 + 3];
 
   mrb_get_args(mrb, "|i", &timeout);
 
@@ -748,8 +778,8 @@ mrb_zpoller_wait(mrb_state *mrb, mrb_value self)
   zsock_actor = zpoller_wait((zpoller_t *) DATA_PTR(self), (int) timeout);
   if (zsock_actor) {
     snprintf(poller_addr, sizeof(poller_addr), "%p", zsock_actor);
-    return mrb_hash_get(mrb, mrb_iv_get(mrb, self, mrb_intern_lit(mrb, "sockets")),
-      mrb_str_new_cstr(mrb, poller_addr));
+    return mrb_hash_get(mrb, mrb_iv_get(mrb, self, mrb_intern_lit(mrb,
+      "sockets")), mrb_str_new_cstr(mrb, poller_addr));
   }
   else
     return mrb_nil_value();
@@ -776,7 +806,7 @@ mrb_zpoller_terminated(mrb_state *mrb, mrb_value self)
 void
 mrb_mruby_czmq_gem_init(mrb_state* mrb) {
   struct RClass *czmq_mod, *zsys_mod, *zsock_class,
-  *zframe_class, *zactor_mod, *zconfig_class, *zpoller_class, *zyre_class;
+  *zframe_class, *zactor_mod, *zconfig_class, *zpoller_class;
 
   czmq_mod = mrb_define_module(mrb, "CZMQ");
   mrb_define_class_under(mrb, czmq_mod, "Error", E_RUNTIME_ERROR);
@@ -831,12 +861,14 @@ mrb_mruby_czmq_gem_init(mrb_state* mrb) {
 
   zconfig_class = mrb_define_class_under(mrb, czmq_mod, "Zconfig", mrb->object_class);
   MRB_SET_INSTANCE_TT(zconfig_class, MRB_TT_DATA);
-  mrb_define_method(mrb, zconfig_class, "initialize", mrb_zconfig_new,          MRB_ARGS_ARG(1, 1));
+  mrb_define_method(mrb, zconfig_class, "initialize", mrb_zconfig_new,          MRB_ARGS_OPT(1));
   mrb_define_method(mrb, zconfig_class, "name",       mrb_zconfig_name,         MRB_ARGS_NONE());
   mrb_define_method(mrb, zconfig_class, "value",      mrb_zconfig_value,        MRB_ARGS_NONE());
   mrb_define_method(mrb, zconfig_class, "put",        mrb_zconfig_put,          MRB_ARGS_REQ(2));
   mrb_define_method(mrb, zconfig_class, "name=",      mrb_zconfig_set_name,     MRB_ARGS_REQ(1));
   mrb_define_method(mrb, zconfig_class, "value=",     mrb_zconfig_set_value,    MRB_ARGS_REQ(1));
+  mrb_define_method(mrb, zconfig_class, "comment=",   mrb_zconfig_set_comment,  MRB_ARGS_REQ(1));
+  mrb_define_method(mrb, zconfig_class, "comments",   mrb_zconfig_comments,     MRB_ARGS_NONE());
   mrb_define_method(mrb, zconfig_class, "resolve",    mrb_zconfig_resolve,      MRB_ARGS_ARG(1, 1));
   mrb_define_class_method(mrb, zconfig_class, "load", mrb_zconfig_load,         MRB_ARGS_REQ(1));
   mrb_define_method(mrb, zconfig_class, "save",       mrb_zconfig_save,         MRB_ARGS_REQ(1));
