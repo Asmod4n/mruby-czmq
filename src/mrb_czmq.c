@@ -389,7 +389,7 @@ mrb_zframe_send(mrb_state *mrb, mrb_value self)
   if (flags < 0 ||flags > INT_MAX)
     mrb_raise(mrb, E_RANGE_ERROR, "flags are out of range");
 
-  if (zframe_send((zframe_t **) &DATA_PTR(self), zsock_actor, flags) == 0)
+  if (zframe_send((zframe_t **) &DATA_PTR(self), zsock_actor, (int) flags) == 0)
     return mrb_true_value();
   else
     mrb_raise(mrb, E_CZMQ_ERROR, zmq_strerror(zmq_errno()));
