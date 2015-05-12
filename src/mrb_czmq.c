@@ -72,10 +72,10 @@ mrb_zsys_interface(mrb_state *mrb, mrb_value self)
 static mrb_value
 mrb_zsys_interrupted(mrb_state *mrb, mrb_value self)
 {
-  if (zsys_interrupted == 0)
-    return mrb_false_value();
-  else
+  if (zsys_interrupted)
     return mrb_true_value();
+  else
+    return mrb_false_value();
 }
 
 static mrb_value
@@ -133,13 +133,17 @@ static mrb_value
 mrb_zsock_bind(mrb_state *mrb, mrb_value self)
 {
   char *endpoint;
-  int rc;
+  int port;
 
   mrb_get_args(mrb, "z", &endpoint);
 
-  rc = zsock_bind((zsock_t *) DATA_PTR(self), "%s", endpoint);
-  if (rc != -1)
-    return mrb_fixnum_value(rc);
+  port = zsock_bind((zsock_t *) DATA_PTR(self), "%s", endpoint);
+  if (port != -1) {
+    if (port > MRB_INT_MAX)
+      return mrb_float_value(mrb, port);
+    else
+      return mrb_fixnum_value(port);
+  }
   else
     mrb_raise(mrb, E_CZMQ_ERROR, zmq_strerror(zmq_errno()));
 }
@@ -187,13 +191,9 @@ static mrb_value
 mrb_zsock_attach(mrb_state *mrb, mrb_value self)
 {
   char *endpoints;
-  mrb_bool serverish_mruby = FALSE;
-  bool serverish = false;
+  mrb_bool serverish = FALSE;
 
-  mrb_get_args(mrb, "z|b", &endpoints, &serverish_mruby);
-
-  if (serverish_mruby == TRUE)
-    serverish = true;
+  mrb_get_args(mrb, "z|b", &endpoints, &serverish);
 
   if (zsock_attach((zsock_t *) DATA_PTR(self), endpoints, serverish) == 0)
     return self;
@@ -236,7 +236,7 @@ mrb_zsock_endpoint(mrb_state *mrb, mrb_value self)
 {
   const char *endpoint = zsock_endpoint((zsock_t *) DATA_PTR(self));
   if (endpoint)
-    return mrb_str_new_static(mrb, endpoint, strlen(endpoint));
+    return mrb_str_new_cstr(mrb, endpoint);
   else
     return mrb_nil_value();
 }
@@ -402,10 +402,10 @@ mrb_zframe_send(mrb_state *mrb, mrb_value self)
 static mrb_value
 mrb_zframe_more(mrb_state *mrb, mrb_value self)
 {
-  if (zframe_more((zframe_t *) DATA_PTR(self)) == 0)
-    return mrb_false_value();
-  else
+  if (zframe_more((zframe_t *) DATA_PTR(self)))
     return mrb_true_value();
+  else
+    return mrb_false_value();
 }
 
 static mrb_value
@@ -530,7 +530,7 @@ mrb_zconfig_name(mrb_state *mrb, mrb_value self)
 {
   char *name = zconfig_name((zconfig_t *) DATA_PTR(self));
   if (name)
-    return mrb_str_new_static(mrb, name, strlen(name));
+    return mrb_str_new_cstr(mrb, name);
   else
     return mrb_nil_value();
 }
@@ -540,7 +540,7 @@ mrb_zconfig_value(mrb_state *mrb, mrb_value self)
 {
   char *value = zconfig_value((zconfig_t *) DATA_PTR(self));
   if (value)
-    return mrb_str_new_static(mrb, value, strlen(value));
+    return mrb_str_new_cstr(mrb, value);
   else
     return mrb_nil_value();
 }
@@ -590,7 +590,7 @@ mrb_zconfig_resolve(mrb_state *mrb, mrb_value self)
 
   value = zconfig_resolve((zconfig_t *) DATA_PTR(self), path, default_value);
   if (value)
-    return mrb_str_new_static(mrb, value, strlen(value));
+    return mrb_str_new_cstr(mrb, value);
   else
     return mrb_nil_value();
 }
@@ -620,7 +620,7 @@ mrb_zconfig_comments(mrb_state *mrb, mrb_value self)
 
     s = (const char *) zlist_first(comments);
     while (s) {
-      mrb_ary_push(mrb, comments_obj, mrb_str_new_static(mrb, s, strlen(s)));
+      mrb_ary_push(mrb, comments_obj, mrb_str_new_cstr(mrb, s));
       s = (const char *) zlist_next(comments);
     }
 
@@ -681,7 +681,7 @@ mrb_zconfig_reload(mrb_state *mrb, mrb_value self)
 static mrb_value
 mrb_zconfig_has_changed(mrb_state *mrb, mrb_value self)
 {
-  if (zconfig_has_changed((zconfig_t *) DATA_PTR(self)) == true)
+  if (zconfig_has_changed((zconfig_t *) DATA_PTR(self)))
     return mrb_true_value();
   else
     return mrb_false_value();
@@ -805,7 +805,7 @@ mrb_zpoller_wait(mrb_state *mrb, mrb_value self)
 static mrb_value
 mrb_zpoller_expired(mrb_state *mrb, mrb_value self)
 {
-  if (zpoller_expired((zpoller_t *) DATA_PTR(self)) == true)
+  if (zpoller_expired((zpoller_t *) DATA_PTR(self)))
     return mrb_true_value();
   else
     return mrb_false_value();
@@ -814,7 +814,7 @@ mrb_zpoller_expired(mrb_state *mrb, mrb_value self)
 static mrb_value
 mrb_zpoller_terminated(mrb_state *mrb, mrb_value self)
 {
-  if (zpoller_terminated((zpoller_t *) DATA_PTR(self)) == true)
+  if (zpoller_terminated((zpoller_t *) DATA_PTR(self)))
     return mrb_true_value();
   else
     return mrb_false_value();
