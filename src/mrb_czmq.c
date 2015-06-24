@@ -511,7 +511,7 @@ static const struct mrb_data_type mrb_zconfig_type = {
 static mrb_value
 mrb_zconfig_new(mrb_state *mrb, mrb_value self)
 {
-  char *name = "root";
+  char *name = (char *) "root";
   zconfig_t *config;
 
   mrb_get_args(mrb, "|z", &name);
