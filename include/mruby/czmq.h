@@ -1,7 +1,7 @@
 ﻿#ifndef MRUBY_CZMQ_H
 #define MRUBY_CZMQ_H
 
-#include "mruby.h"
+#include <mruby.h>
 
 #ifdef __cplusplus
 extern "C" {
