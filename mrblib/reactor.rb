@@ -1,7 +1,7 @@
 module CZMQ
   class Reactor
     class Timer
-      attr_reader :when
+      attr_reader :delay, :times, :when
 
       def initialize(reactor, delay, times, &block)
         delay = Integer(delay)
@@ -18,6 +18,21 @@ module CZMQ
 
       def <=>(other)
         @when <=> other.when
+      end
+
+      def delay=(delay)
+        delay = Integer(delay)
+        raise ArgumentError, "delay must be 0 or greater" if delay < 0
+        @when -= @delay
+        @delay = delay
+        @when += @delay
+        @reactor.sort_timers
+      end
+
+      def times=(times)
+        times = Integer(times)
+        raise ArgumentError, "times must be 0 or greater" if times < 0
+        @times = times
       end
 
       def call
@@ -70,6 +85,10 @@ module CZMQ
       @timers.delete(timer)
       @timers.sort!
       self
+    end
+
+    def sort_timers
+      @timers.sort!
     end
 
     def tickless
