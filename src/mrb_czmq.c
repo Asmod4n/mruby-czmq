@@ -139,14 +139,11 @@ mrb_zsys_interrupted(mrb_state *mrb, mrb_value self)
 static mrb_value
 mrb_set_zsys_interrupted(mrb_state *mrb, mrb_value self)
 {
-  mrb_int interrupted;
+  mrb_bool interrupted;
 
-  mrb_get_args(mrb, "i", &interrupted);
+  mrb_get_args(mrb, "b", &interrupted);
 
-  if (interrupted < INT_MIN ||interrupted > INT_MAX)
-    mrb_raise(mrb, E_RANGE_ERROR, "interrupted is out of range");
-
-  zsys_interrupted = (int) interrupted;
+  zctx_interrupted = zsys_interrupted = (int) interrupted;
 
   return self;
 }
@@ -892,6 +889,14 @@ mrb_zpoller_terminated(mrb_state *mrb, mrb_value self)
     return mrb_false_value();
 }
 
+static mrb_value
+mrb_zpoller_ignore_interrupts(mrb_state *mrb, mrb_value self)
+{
+  zpoller_ignore_interrupts((zpoller_t *) DATA_PTR(self));
+
+  return self;
+}
+
 void
 mrb_mruby_czmq_gem_init(mrb_state* mrb) {
   struct RClass *zmq_mod, *czmq_mod, *zclock_mod, *zsys_mod, *zsock_class,
@@ -988,12 +993,13 @@ mrb_mruby_czmq_gem_init(mrb_state* mrb) {
 
   zpoller_class = mrb_define_class_under(mrb, czmq_mod, "Zpoller", mrb->object_class);
   MRB_SET_INSTANCE_TT(zpoller_class, MRB_TT_DATA);
-  mrb_define_method(mrb, zpoller_class, "initialize",   mrb_zpoller_new,        MRB_ARGS_REQ(1));
-  mrb_define_method(mrb, zpoller_class, "add",          mrb_zpoller_add,        MRB_ARGS_REQ(1));
-  mrb_define_method(mrb, zpoller_class, "remove",       mrb_zpoller_remove,     MRB_ARGS_REQ(1));
-  mrb_define_method(mrb, zpoller_class, "wait",         mrb_zpoller_wait,       MRB_ARGS_OPT(1));
-  mrb_define_method(mrb, zpoller_class, "expired?",     mrb_zpoller_expired,    MRB_ARGS_NONE());
-  mrb_define_method(mrb, zpoller_class, "terminated?",  mrb_zpoller_terminated, MRB_ARGS_NONE());
+  mrb_define_method(mrb, zpoller_class, "initialize",         mrb_zpoller_new,                MRB_ARGS_REQ(1));
+  mrb_define_method(mrb, zpoller_class, "add",                mrb_zpoller_add,                MRB_ARGS_REQ(1));
+  mrb_define_method(mrb, zpoller_class, "remove",             mrb_zpoller_remove,             MRB_ARGS_REQ(1));
+  mrb_define_method(mrb, zpoller_class, "wait",               mrb_zpoller_wait,               MRB_ARGS_OPT(1));
+  mrb_define_method(mrb, zpoller_class, "expired?",           mrb_zpoller_expired,            MRB_ARGS_NONE());
+  mrb_define_method(mrb, zpoller_class, "terminated?",        mrb_zpoller_terminated,         MRB_ARGS_NONE());
+  mrb_define_method(mrb, zpoller_class, "ignore_interrupts",  mrb_zpoller_ignore_interrupts,  MRB_ARGS_NONE());
 
   if (zsys_init() == NULL)
     mrb_raise(mrb, E_CZMQ_ERROR, zmq_strerror(zmq_errno()));

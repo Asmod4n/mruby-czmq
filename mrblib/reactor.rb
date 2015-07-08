@@ -1,64 +1,107 @@
 module CZMQ
   class Reactor
-    Timer = Struct.new(:delay, :times, :callback)
+    class Timer
+      attr_reader :when
+
+      def initialize(reactor, delay, times, &block)
+        delay = Integer(delay)
+        raise ArgumentError, "delay must be 0 or greater" if delay < 0
+        times = Integer(times)
+        raise ArgumentError, "times must be 0 or greater" if times < 0
+        raise ArgumentError, "no block given" unless block_given?
+        @reactor = reactor
+        @delay = delay
+        @times = times
+        @block = block
+        @when = Zclock.mono + @delay
+      end
+
+      def <=>(other)
+        @when <=> other.when
+      end
+
+      def call
+        @block.call(self)
+        if @times > 0 && (@times -= 1) == 0
+          @reactor.timer_end(self)
+        else
+          @when += @delay
+        end
+      end
+    end
+
+    attr_accessor :interrupted
+
     def initialize
+      @poller = Zpoller.new
       @timers = []
       @readers = {}
-      @poller = Zpoller.new
-      @needs_rebuild = false
+      @interrupted = false
+    end
+
+    def ignore_interrupts
+      @poller.ignore_interrupts
     end
 
     def reader(socket, &block)
       raise ArgumentError, "no block given" unless block_given?
+      if @readers.has_key?(socket)
+        raise ArgumentError, "each sock can only be polled once"
+      end
       @poller.add(socket)
       @readers[socket] = block
       self
     end
 
     def reader_end(socket)
-      raise ArgumentError, "no poller started" unless @poller
       @poller.remove socket
       @readers.delete socket
       self
     end
 
     def timer(delay, times, &block)
-      raise ArgumentError, "no block given" unless block_given?
-      delay = Integer(delay)
-      times = Integer(times)
-      timer = Timer.new(delay, times, block)
+      timer = Timer.new(self, delay, times, &block)
       @timers << timer
-      @needs_rebuild = true
+      @timers.sort!
       timer
     end
 
     def timer_end(timer)
       @timers.delete(timer)
-      @needs_rebuild = true
+      @timers.sort!
       self
     end
 
-    def start
-      until Zsys.interrupted?
-        res = nil
+    def tickless
+      tickless = Zclock.mono + 1000
+      unless @timers.empty?
+        tickless = @timers[0].when
+      end
+      timeout = tickless - Zclock.mono
+      timeout < 0 ? 0 : timeout
+    end
+
+    def run
+      until @poller.terminated? ||@interrupted
         if @timers.empty? && @readers.empty?
           break
         end
-        if @needs_rebuild
-          @timers.sort! {|x, y| x.delay <=> y.delay}
-          @needs_rebuild = false
+        if socket = @poller.wait(tickless)
+          @readers[socket].call(socket)
         end
         now = Zclock.mono
-        if @timers.empty?
-          res = @poller.wait
-        else
-          res = @poller.wait @timers.first.delay
-        end
-        if res
-          @readers[res].call(res)
-        end
-        @timers.select {|timer| timer.delay <= (Zclock.mono - now)}.each {|timer| timer.callback.call(timer)}
+        @timers.select {|timer| now >= timer.when}.map(&:call)
       end
+      self
+    end
+
+    def run_once
+      if socket = @poller.wait(tickless)
+        @readers[socket].call(socket)
+      end
+      now = Zclock.mono
+      @timers.select {|timer| now >= timer.when}.map(&:call)
+      self
     end
   end
 end
