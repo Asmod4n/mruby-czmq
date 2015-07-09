@@ -55,6 +55,7 @@ module CZMQ
 
     def ignore_interrupts
       @poller.ignore_interrupts
+      self
     end
 
     def reader(socket, &block)
@@ -98,7 +99,7 @@ module CZMQ
         if @timers.empty? && @readers.empty?
           break
         end
-        if socket = @poller.wait(tickless)
+        if (socket = @poller.wait(tickless))
           @readers[socket].call(socket)
         end
         now = Zclock.mono
@@ -108,7 +109,22 @@ module CZMQ
     end
 
     def run_once
-      if socket = @poller.wait(tickless)
+      if @timers.empty? && @readers.empty?
+        return self
+      end
+      if (socket = @poller.wait(tickless))
+        @readers[socket].call(socket)
+      end
+      now = Zclock.mono
+      @timers.select {|timer| now >= timer.when}.map(&:call)
+      self
+    end
+
+    def run_nowait
+      if @timers.empty? && @readers.empty?
+        return self
+      end
+      if (socket = @poller.wait(0))
         @readers[socket].call(socket)
       end
       now = Zclock.mono
