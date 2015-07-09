@@ -424,10 +424,18 @@ mrb_zframe_size(mrb_state *mrb, mrb_value self)
 static mrb_value
 mrb_zframe_to_str(mrb_state *mrb, mrb_value self)
 {
+  mrb_bool static_string = FALSE;
+
+  mrb_get_args(mrb, "|b", &static_string);
+
   zframe_t *zframe = (zframe_t *) DATA_PTR(self);
 
-  return mrb_str_new_static(mrb, (const char *) zframe_data(zframe),
-    zframe_size(zframe));
+  if (static_string)
+    return mrb_str_new_static(mrb, (const char *) zframe_data(zframe),
+      zframe_size(zframe));
+  else
+    return mrb_str_new(mrb, (const char *) zframe_data(zframe),
+      zframe_size(zframe));
 }
 
 static mrb_value
@@ -962,7 +970,7 @@ mrb_mruby_czmq_gem_init(mrb_state* mrb) {
   mrb_define_class_method(mrb, zframe_class, "recv",    mrb_zframe_recv,    MRB_ARGS_REQ(1));
   mrb_define_method(mrb, zframe_class, "data",          mrb_zframe_data,    MRB_ARGS_NONE());
   mrb_define_method(mrb, zframe_class, "size",          mrb_zframe_size,    MRB_ARGS_NONE());
-  mrb_define_method(mrb, zframe_class, "to_str",        mrb_zframe_to_str,  MRB_ARGS_NONE());
+  mrb_define_method(mrb, zframe_class, "to_str",        mrb_zframe_to_str,  MRB_ARGS_OPT(1));
   mrb_define_method(mrb, zframe_class, "reset" ,        mrb_zframe_reset,   MRB_ARGS_REQ(1));
   mrb_define_method(mrb, zframe_class, "send" ,         mrb_zframe_send,    MRB_ARGS_ARG(1, 1));
   mrb_define_method(mrb, zframe_class, "more?" ,        mrb_zframe_more,    MRB_ARGS_NONE());
