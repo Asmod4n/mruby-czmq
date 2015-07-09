@@ -24,6 +24,7 @@ module CZMQ
       def delay=(delay)
         delay = Integer(delay)
         raise ArgumentError, "delay must be 0 or greater" if delay < 0
+        @delay = delay
         @when = Zclock.mono + @delay
       end
 
