@@ -1,6 +1,7 @@
 module CZMQ
   class Reactor
     class Timer
+      include Comparable
       attr_reader :delay, :times, :when
 
       def initialize(reactor, delay, times, &block)
@@ -26,7 +27,6 @@ module CZMQ
         @when -= @delay
         @delay = delay
         @when += @delay
-        @reactor.sort_timers
       end
 
       def times=(times)
@@ -77,24 +77,18 @@ module CZMQ
     def timer(delay, times, &block)
       timer = Timer.new(self, delay, times, &block)
       @timers << timer
-      @timers.sort!
       timer
     end
 
     def timer_end(timer)
       @timers.delete(timer)
-      @timers.sort!
       self
-    end
-
-    def sort_timers
-      @timers.sort!
     end
 
     def tickless
       tickless = Zclock.mono + 1000
       unless @timers.empty?
-        tickless = @timers[0].when
+        tickless = @timers.min.when
       end
       timeout = tickless - Zclock.mono
       timeout < 0 ? 0 : timeout
