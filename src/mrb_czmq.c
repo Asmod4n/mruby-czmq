@@ -766,11 +766,11 @@ mrb_zpoller_new(mrb_state *mrb, mrb_value self)
 {
   mrb_value *argv;
   mrb_int argc;
-  void *zsocket;
   zpoller_t *zpoller;
-  mrb_value zsockets;
-  mrb_value zsocket_ptr;
+  mrb_value zsocks;
   mrb_value *argv_end;
+  void *zsock;
+  mrb_value zsock_ptr;
 
   mrb_get_args(mrb, "*", &argv, &argc);
 
@@ -778,20 +778,20 @@ mrb_zpoller_new(mrb_state *mrb, mrb_value self)
   if (zpoller) {
     mrb_data_init(self, zpoller, &mrb_zpoller_type);
     if (argc > 0)
-      zsockets = mrb_hash_new_capa(mrb, argc);
+      zsocks = mrb_hash_new_capa(mrb, argc);
     else
-      zsockets = mrb_hash_new(mrb);
+      zsocks = mrb_hash_new(mrb);
 
-    mrb_iv_set(mrb, self, mrb_intern_lit(mrb, "zsockets"), zsockets);
+    mrb_iv_set(mrb, self, mrb_intern_lit(mrb, "zsocks"), zsocks);
     argv_end = argv + argc;
     for (; argv < argv_end; argv++) {
-      zsocket = mrb_data_get_ptr(mrb, *argv, &mrb_zsock_actor_type);
-      if (zpoller_add(zpoller, zsocket) == 0) {
+      zsock = mrb_data_get_ptr(mrb, *argv, &mrb_zsock_actor_type);
+      if (zpoller_add(zpoller, zsock) == 0) {
         if (sizeof (intptr_t) > sizeof (mrb_int))
-          zsocket_ptr = mrb_float_value(mrb, (intptr_t) zsocket);
+          zsock_ptr = mrb_float_value(mrb, (intptr_t) zsock);
         else
-          zsocket_ptr = mrb_fixnum_value((intptr_t) zsocket);
-        mrb_hash_set(mrb, zsockets, zsocket_ptr, *argv);
+          zsock_ptr = mrb_fixnum_value((intptr_t) zsock);
+        mrb_hash_set(mrb, zsocks, zsock_ptr, *argv);
       }
       else
         mrb_raise(mrb, E_CZMQ_ERROR, zmq_strerror(zmq_errno()));
@@ -806,21 +806,22 @@ mrb_zpoller_new(mrb_state *mrb, mrb_value self)
 static mrb_value
 mrb_zpoller_add(mrb_state *mrb, mrb_value self)
 {
-  mrb_value zsock_actor, zsocket_ptr;
-  void *zsocket;
+  mrb_value zsock_actor;
+  void *zsock;
+  mrb_value zsock_ptr;
 
   mrb_get_args(mrb, "o", &zsock_actor);
 
-  zsocket = mrb_data_get_ptr(mrb, zsock_actor, &mrb_zsock_actor_type);
+  zsock = mrb_data_get_ptr(mrb, zsock_actor, &mrb_zsock_actor_type);
 
-  if (zpoller_add((zpoller_t *) DATA_PTR(self), zsocket) == 0) {
+  if (zpoller_add((zpoller_t *) DATA_PTR(self), zsock) == 0) {
     if (sizeof (intptr_t) > sizeof (mrb_int))
-      zsocket_ptr = mrb_float_value(mrb, (intptr_t) zsocket);
+      zsock_ptr = mrb_float_value(mrb, (intptr_t) zsock);
     else
-      zsocket_ptr = mrb_fixnum_value((intptr_t) zsocket);
+      zsock_ptr = mrb_fixnum_value((intptr_t) zsock);
 
     mrb_hash_set(mrb, mrb_iv_get(mrb, self, mrb_intern_lit(mrb,
-      "zsockets")), zsocket_ptr, zsock_actor);
+      "zsocks")), zsock_ptr, zsock_actor);
   }
   else
     mrb_raise(mrb, E_CZMQ_ERROR, zmq_strerror(zmq_errno()));
@@ -831,21 +832,22 @@ mrb_zpoller_add(mrb_state *mrb, mrb_value self)
 static mrb_value
 mrb_zpoller_remove(mrb_state *mrb, mrb_value self)
 {
-  mrb_value zsock_actor, zsocket_ptr;
-  void *zsocket;
+  mrb_value zsock_actor;
+  void *zsock;
+  mrb_value zsock_ptr;
 
   mrb_get_args(mrb, "o", &zsock_actor);
 
-  zsocket = mrb_data_get_ptr(mrb, zsock_actor, &mrb_zsock_actor_type);
+  zsock = mrb_data_get_ptr(mrb, zsock_actor, &mrb_zsock_actor_type);
 
-  if (zpoller_remove((zpoller_t *) DATA_PTR(self), zsocket) == 0) {
+  if (zpoller_remove((zpoller_t *) DATA_PTR(self), zsock) == 0) {
     if (sizeof (intptr_t) > sizeof (mrb_int))
-      zsocket_ptr = mrb_float_value(mrb, (intptr_t) zsocket);
+      zsock_ptr = mrb_float_value(mrb, (intptr_t) zsock);
     else
-      zsocket_ptr = mrb_fixnum_value((intptr_t) zsocket);
+      zsock_ptr = mrb_fixnum_value((intptr_t) zsock);
 
     mrb_hash_delete_key(mrb, mrb_iv_get(mrb, self, mrb_intern_lit(mrb,
-      "zsockets")), zsocket_ptr);
+      "zsocks")), zsock_ptr);
   }
   else
     mrb_raise(mrb, E_CZMQ_ERROR, zmq_strerror(zmq_errno()));
@@ -857,23 +859,23 @@ static mrb_value
 mrb_zpoller_wait(mrb_state *mrb, mrb_value self)
 {
   mrb_int timeout = -1;
-  void *zsocket;
-  mrb_value zsocket_ptr;
+  void *zsock;
+  mrb_value zsock_ptr;
 
   mrb_get_args(mrb, "|i", &timeout);
 
   if (timeout < -1 ||timeout > INT_MAX)
     mrb_raise(mrb, E_RANGE_ERROR, "timeout is out of range");
 
-  zsocket = zpoller_wait((zpoller_t *) DATA_PTR(self), (int) timeout);
-  if (zsocket) {
+  zsock = zpoller_wait((zpoller_t *) DATA_PTR(self), (int) timeout);
+  if (zsock) {
     if (sizeof (intptr_t) > sizeof (mrb_int))
-      zsocket_ptr = mrb_float_value(mrb, (intptr_t) zsocket);
+      zsock_ptr = mrb_float_value(mrb, (intptr_t) zsock);
     else
-      zsocket_ptr = mrb_fixnum_value((intptr_t) zsocket);
+      zsock_ptr = mrb_fixnum_value((intptr_t) zsock);
 
     return mrb_hash_get(mrb, mrb_iv_get(mrb, self, mrb_intern_lit(mrb,
-      "zsockets")), zsocket_ptr);
+      "zsocks")), zsock_ptr);
   }
   else
     return mrb_nil_value();
@@ -1008,6 +1010,10 @@ mrb_mruby_czmq_gem_init(mrb_state* mrb) {
   mrb_define_method(mrb, zpoller_class, "expired?",           mrb_zpoller_expired,            MRB_ARGS_NONE());
   mrb_define_method(mrb, zpoller_class, "terminated?",        mrb_zpoller_terminated,         MRB_ARGS_NONE());
   mrb_define_method(mrb, zpoller_class, "ignore_interrupts",  mrb_zpoller_ignore_interrupts,  MRB_ARGS_NONE());
+
+  size_t native_size = sizeof(intptr_t);
+  if (sizeof(mrb_int) != native_size)
+    mrb_warn(mrb, "enable #define MRB_INT%S in mrbconf.h for better mruby-czmq performance\n", mrb_fixnum_value(native_size * 8));
 
   if (zsys_init() == NULL)
     mrb_raise(mrb, E_CZMQ_ERROR, zmq_strerror(zmq_errno()));
