@@ -1,7 +1,6 @@
 module CZMQ
   class Reactor
     class Timer
-      include Comparable
       attr_reader :delay, :times, :when
 
       def initialize(reactor, delay, times, &block)
@@ -14,7 +13,7 @@ module CZMQ
         @delay = delay
         @times = times
         @block = block
-        @when = Zclock.mono + @delay
+        @when = Zclock.mono + delay
       end
 
       def <=>(other)
@@ -25,7 +24,7 @@ module CZMQ
         delay = Integer(delay)
         raise ArgumentError, "delay must be 0 or greater" if delay < 0
         @delay = delay
-        @when = Zclock.mono + @delay
+        @when = Zclock.mono + delay
       end
 
       def times=(times)
@@ -50,8 +49,8 @@ module CZMQ
       def initialize(reactor, &block)
         raise ArgumentError, "no block given" unless block_given?
         @reactor = reactor
-        @delay = @reactor.ticket_delay
-        @when = Zclock.mono + @delay
+        @block = block
+        @when = Zclock.mono + reactor.ticket_delay
       end
 
       def reset
@@ -72,8 +71,8 @@ module CZMQ
       @timers = []
       @tickets = []
       @readers = {}
-      @ticket_delay = nil
       @interrupted = false
+      @ticket_delay = nil
     end
 
     def ticket_delay=(delay)
@@ -124,8 +123,8 @@ module CZMQ
 
     def ticket_reset(ticket)
       ticket = @tickets.delete_at(@tickets.index(ticket))
-      ticket.when = Zclock.mono + @ticket_delay
       @tickets << ticket
+      ticket.when = Zclock.mono + @ticket_delay
       ticket
     end
 
