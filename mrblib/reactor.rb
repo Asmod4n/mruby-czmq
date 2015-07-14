@@ -55,11 +55,12 @@ module CZMQ
       end
 
       def reset
-        @reactor.reset_ticket(self)
+        @reactor.ticket_reset(self)
       end
 
       def call
         @block.call(self)
+        @reactor.ticket_delete(self)
       end
     end
 
@@ -147,42 +148,39 @@ module CZMQ
 
     def run
       until @poller.terminated? ||@interrupted
-        if @timers.empty? && @readers.empty?
+        if @timers.empty? && @readers.empty? && @tickets.empty?
           break
         end
         if (socket = @poller.wait(tickless))
           @readers[socket].call(socket)
         end
-        now = Zclock.mono
-        @timers.select {|timer| now >= timer.when}.each {|timer| timer.call}
-        @tickets.delete_if {|ticket| now >= ticket.when}.each {|ticket| ticket.call}
+        @timers.select {|timer| Zclock.mono >= timer.when}.each {|timer| timer.call}
+        @tickets.take_while {|ticket| Zclock.mono >= ticket.when}.each {|ticket| ticket.call}
       end
       self
     end
 
     def run_once
-      if @timers.empty? && @readers.empty?
+      if @timers.empty? && @readers.empty? && @tickets.empty?
         return self
       end
       if (socket = @poller.wait(tickless))
         @readers[socket].call(socket)
       end
-      now = Zclock.mono
-      @timers.select {|timer| now >= timer.when}.each {|timer| timer.call}
-      @tickets.delete_if {|ticket| now >= ticket.when}.each {|ticket| ticket.call}
+      @timers.select {|timer| Zclock.mono >= timer.when}.each {|timer| timer.call}
+      @tickets.take_while {|ticket| Zclock.mono >= ticket.when}.each {|ticket| ticket.call}
       self
     end
 
     def run_nowait
-      if @timers.empty? && @readers.empty?
+      if @timers.empty? && @readers.empty? && @tickets.empty?
         return self
       end
       if (socket = @poller.wait(0))
         @readers[socket].call(socket)
       end
-      now = Zclock.mono
-      @timers.select {|timer| now >= timer.when}.each {|timer| timer.call}
-      @tickets.delete_if {|ticket| now >= ticket.when}.each {|ticket| ticket.call}
+      @timers.select {|timer| Zclock.mono >= timer.when}.each {|timer| timer.call}
+      @tickets.take_while {|ticket| Zclock.mono >= ticket.when}.each {|ticket| ticket.call}
       self
     end
   end
