@@ -1,6 +1,78 @@
 ﻿#include "mruby/czmq.h"
 #include "mrb_czmq.h"
 
+static void
+mrb_zarmour_destroy(mrb_state *mrb, void *p)
+{
+  zarmour_destroy((zarmour_t **) &p);
+}
+
+static const struct mrb_data_type mrb_zarmour_type = {
+  "$i_mrb_zsock_actor_type", mrb_zarmour_destroy
+};
+
+static mrb_value
+mrb_zarmour_new(mrb_state *mrb, mrb_value self)
+{
+  zarmour_t *zarmour = zarmour_new();
+  if (zarmour)
+    mrb_data_init(self, zarmour, &mrb_zarmour_type);
+  else
+    mrb_raise(mrb, E_CZMQ_ERROR, zmq_strerror(zmq_errno()));
+
+  return self;
+}
+
+static mrb_value
+mrb_zarmour_mode_str(mrb_state *mrb, mrb_value self)
+{
+  const char *mode_str = zarmour_mode_str((zarmour_t *) DATA_PTR(self));
+
+  return mrb_str_new_static(mrb, mode_str, strlen(mode_str));
+}
+
+static mrb_value
+mrb_zarmour_encode(mrb_state *mrb, mrb_value self)
+{
+  char *data;
+  mrb_int data_size;
+
+  mrb_get_args(mrb, "s", &data, &data_size);
+
+  char *encoded = zarmour_encode((zarmour_t *) DATA_PTR(self),
+    (const byte *) data, data_size);
+
+  if (encoded) {
+    mrb_value enc = mrb_str_new(mrb, encoded, strlen(encoded));
+    zstr_free(&encoded);
+    return enc;
+  }
+  else
+    mrb_raise(mrb, E_CZMQ_ERROR, zmq_strerror(zmq_errno()));
+}
+
+static mrb_value
+mrb_zarmour_decode(mrb_state *mrb, mrb_value self)
+{
+  char *data;
+  size_t decode_size;
+
+  mrb_get_args(mrb, "z", &data);
+
+  byte *decoded = zarmour_decode((zarmour_t *) DATA_PTR(self),
+    data, &decode_size);
+
+  if (decoded) {
+    if (decoded[decode_size - 1] == '\0')
+      decode_size--;
+    mrb_value dec = mrb_str_new(mrb, (const char *) decoded, decode_size);
+    free(decoded);
+    return dec;
+  }
+  else
+    mrb_raise(mrb, E_CZMQ_ERROR, zmq_strerror(zmq_errno()));
+}
+
 static mrb_value
 mrb_zclock_sleep(mrb_state *mrb, mrb_value self)
 {
@@ -311,17 +383,14 @@ mrb_zsock_set_identity(mrb_state *mrb, mrb_value self)
 static mrb_value
 mrb_zsock_identity(mrb_state *mrb, mrb_value self)
 {
-  char *identity;
-  mrb_value id_val;
-
-  identity = zsock_identity((zsock_t *) DATA_PTR(self));
-  if (identity) {
-    id_val = mrb_str_new_cstr(mrb, identity);
-    zstr_free(&identity);
-    return id_val;
-  }
-  else
-    return mrb_nil_value();
+#if defined (ZMQ_IDENTITY)
+  uint8_t id [256];
+  size_t id_size = 256;
+  zmq_getsockopt (zsock_resolve ((zsock_t *) DATA_PTR(self)), ZMQ_IDENTITY, id, &id_size);
+  return mrb_str_new(mrb, (const char *) id, id_size);
+#else
+  return mrb_nil_value();
+#endif
 }
 
 static mrb_value
@@ -909,7 +978,7 @@ mrb_zpoller_ignore_interrupts(mrb_state *mrb, mrb_value self)
 
 void
 mrb_mruby_czmq_gem_init(mrb_state* mrb) {
-  struct RClass *zmq_mod, *czmq_mod, *zclock_mod, *zsys_mod, *zsock_class,
+  struct RClass *zmq_mod, *czmq_mod, *zarmour_class, *zclock_mod, *zsys_mod, *zsock_class,
   *zframe_class, *zactor_class, *zconfig_class, *zpoller_class;
 
   zmq_mod = mrb_define_module(mrb, "ZMQ");
@@ -928,6 +997,13 @@ mrb_mruby_czmq_gem_init(mrb_state* mrb) {
 
   czmq_mod = mrb_define_module(mrb, "CZMQ");
   mrb_define_class_under(mrb, czmq_mod, "Error", E_RUNTIME_ERROR);
+
+  zarmour_class = mrb_define_class_under(mrb, czmq_mod, "Zarmour", mrb->object_class);
+  MRB_SET_INSTANCE_TT(zarmour_class, MRB_TT_DATA);
+  mrb_define_method(mrb, zarmour_class, "initialize", mrb_zarmour_new, MRB_ARGS_NONE());
+  mrb_define_method(mrb, zarmour_class, "mode_str", mrb_zarmour_mode_str, MRB_ARGS_NONE());
+  mrb_define_method(mrb, zarmour_class, "encode", mrb_zarmour_encode, MRB_ARGS_REQ(1));
+  mrb_define_method(mrb, zarmour_class, "decode", mrb_zarmour_decode, MRB_ARGS_REQ(1));
 
   zclock_mod = mrb_define_module_under(mrb, czmq_mod, "Zclock");
   mrb_define_module_function(mrb, zclock_mod, "sleep",    mrb_zclock_sleep,   MRB_ARGS_REQ(1));
