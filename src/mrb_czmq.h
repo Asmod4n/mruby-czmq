@@ -1,8 +1,76 @@
-﻿#include <czmq.h>
-#include <mruby.h>
+﻿#ifndef MRB_CZMQ_H
+#define MRB_CZMQ_H
+
+#include <czmq.h>
 #include <mruby/data.h>
 #include <mruby/class.h>
 #include <mruby/variable.h>
 #include <mruby/hash.h>
 #include <mruby/array.h>
 #include <mruby/string.h>
+
+static void
+mrb_zarmour_destroy(mrb_state *mrb, void *p)
+{
+  zarmour_destroy((zarmour_t **) &p);
+}
+
+static const struct mrb_data_type mrb_zarmour_type = {
+  "$i_mrb_zsock_actor_type", mrb_zarmour_destroy
+};
+
+static void
+mrb_zsock_actor_destroy(mrb_state *mrb, void *p)
+{
+  if (p) {
+    if (zsock_is(p))
+      zsock_destroy((zsock_t **) &p);
+    else
+    if (zactor_is(p))
+      zactor_destroy((zactor_t **) &p);
+  }
+}
+
+static const struct mrb_data_type mrb_zsock_actor_type = {
+  "$i_mrb_zsock_actor_type", mrb_zsock_actor_destroy
+};
+
+static void
+mrb_zframe_destroy(mrb_state *mrb, void *p)
+{
+  zframe_destroy((zframe_t **) &p);
+}
+
+static const struct mrb_data_type mrb_zframe_type = {
+  "$i_mrb_zframe_type", mrb_zframe_destroy
+};
+
+static void
+mrb_zconfig_destroy(mrb_state *mrb, void *p)
+{
+  zconfig_destroy((zconfig_t **) &p);
+}
+
+static const struct mrb_data_type mrb_zconfig_type = {
+  "$i_mrb_zconfig_type", mrb_zconfig_destroy
+};
+
+static void
+mrb_zpoller_destroy(mrb_state *mrb, void *p)
+{
+  zpoller_destroy((zpoller_t **) &p);
+}
+
+static const struct mrb_data_type mrb_zpoller_type = {
+  "$i_mrb_zpoller_type", mrb_zpoller_destroy
+};
+
+static const struct mrb_data_type mrb_pollitem_type = {
+  "$i_mrb_pollitem_type", mrb_free
+};
+
+static const struct mrb_data_type mrb_pollitems_type = {
+  "$i_mrb_pollitems_type", mrb_free
+};
+
+#endif

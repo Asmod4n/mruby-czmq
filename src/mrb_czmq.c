@@ -1,16 +1,6 @@
 ﻿#include "mruby/czmq.h"
 #include "mrb_czmq.h"
 
-static void
-mrb_zarmour_destroy(mrb_state *mrb, void *p)
-{
-  zarmour_destroy((zarmour_t **) &p);
-}
-
-static const struct mrb_data_type mrb_zarmour_type = {
-  "$i_mrb_zsock_actor_type", mrb_zarmour_destroy
-};
-
 static mrb_value
 mrb_zarmour_new(mrb_state *mrb, mrb_value self)
 {
@@ -220,21 +210,26 @@ mrb_set_zsys_interrupted(mrb_state *mrb, mrb_value self)
   return self;
 }
 
-static void
-mrb_zsock_actor_destroy(mrb_state *mrb, void *p)
+static mrb_value
+mrb_zsys_create_pipe(mrb_state *mrb, mrb_value self)
 {
-  if (p) {
-    if (zsock_is(p))
-      zsock_destroy((zsock_t **) &p);
-    else
-    if (zactor_is(p))
-      zactor_destroy((zactor_t **) &p);
-  }
-}
+  zsock_t *backend;
+  zsock_t *frontend = zsys_create_pipe(&backend);
 
-static const struct mrb_data_type mrb_zsock_actor_type = {
-  "$i_mrb_zsock_actor_type", mrb_zsock_actor_destroy
-};
+  if (frontend) {
+    return mrb_assoc_new(mrb,
+      mrb_obj_value(mrb_data_object_alloc(mrb,
+        mrb_class_get_under(mrb,
+          mrb_module_get(mrb, "CZMQ"), "Zsock"),
+            frontend, &mrb_zsock_actor_type)),
+      mrb_obj_value(mrb_data_object_alloc(mrb,
+        mrb_class_get_under(mrb,
+          mrb_module_get(mrb, "CZMQ"), "Zsock"),
+            backend, &mrb_zsock_actor_type)));
+  }
+  else
+    mrb_raise(mrb, E_CZMQ_ERROR, zmq_strerror(zmq_errno()));
+}
 
 static mrb_value
 mrb_zsock_new(mrb_state *mrb, mrb_value self)
@@ -429,16 +424,6 @@ mrb_zsock_sendx(mrb_state *mrb, mrb_value self)
     mrb_raise(mrb, E_CZMQ_ERROR, zmq_strerror(zmq_errno()));
 }
 
-static void
-mrb_zframe_destroy(mrb_state *mrb, void *p)
-{
-  zframe_destroy((zframe_t **) &p);
-}
-
-static const struct mrb_data_type mrb_zframe_type = {
-  "$i_mrb_zframe_type", mrb_zframe_destroy
-};
-
 static mrb_value
 mrb_zframe_new(mrb_state *mrb, mrb_value self)
 {
@@ -631,16 +616,6 @@ mrb_zactor_new_zproxy(mrb_state *mrb, mrb_value self)
     mrb_raise(mrb, E_CZMQ_ERROR, zmq_strerror(zmq_errno()));
 }
 
-static void
-mrb_zconfig_destroy(mrb_state *mrb, void *p)
-{
-  zconfig_destroy((zconfig_t **) &p);
-}
-
-static const struct mrb_data_type mrb_zconfig_type = {
-  "$i_mrb_zconfig_type", mrb_zconfig_destroy
-};
-
 static mrb_value
 mrb_zconfig_new(mrb_state *mrb, mrb_value self)
 {
@@ -820,16 +795,6 @@ mrb_zconfig_has_changed(mrb_state *mrb, mrb_value self)
     return mrb_false_value();
 }
 
-static void
-mrb_zpoller_destroy(mrb_state *mrb, void *p)
-{
-  zpoller_destroy((zpoller_t **) &p);
-}
-
-static const struct mrb_data_type mrb_zpoller_type = {
-  "$i_mrb_zpoller_type", mrb_zpoller_destroy
-};
-
 static mrb_value
 mrb_zpoller_new(mrb_state *mrb, mrb_value self)
 {
@@ -976,10 +941,114 @@ mrb_zpoller_ignore_interrupts(mrb_state *mrb, mrb_value self)
   return self;
 }
 
+static mrb_value
+mrb_pollitem_new(mrb_state *mrb, mrb_value self)
+{
+  mrb_value socket_obj = mrb_nil_value();
+  mrb_int fd = 0;
+  mrb_int events = ZMQ_POLLIN;
+
+  mrb_get_args(mrb, "|oii", &socket_obj, &fd, &events);
+
+  zmq_pollitem_t *pollitem = mrb_calloc(mrb, 1, sizeof(zmq_pollitem_t));
+  mrb_data_init(self, pollitem, &mrb_pollitem_type);
+
+  mrb_iv_set(mrb, self, mrb_intern_lit(mrb, "socket"), socket_obj);
+
+  switch (mrb_type(socket_obj)) {
+    case MRB_TT_CPTR:
+      pollitem->socket = mrb_cptr(socket_obj);
+      break;
+    case MRB_TT_DATA:
+      pollitem->socket = zsock_resolve(mrb_data_check_get_ptr(mrb, socket_obj, &mrb_zsock_actor_type));
+      break;
+    case MRB_TT_FALSE:
+      break;
+    default:
+      mrb_raise(mrb, E_ARGUMENT_ERROR, "dafug");
+  }
+
+  pollitem->fd = fd;
+  pollitem->events = events;
+
+  return self;
+}
+
+static mrb_value
+mrb_pollitem_socket(mrb_state *mrb, mrb_value self)
+{
+  return mrb_iv_get(mrb, self, mrb_intern_lit(mrb, "socket"));
+}
+
+static mrb_value
+mrb_pollitem_fd(mrb_state *mrb, mrb_value self)
+{
+  zmq_pollitem_t *pollitem = (zmq_pollitem_t *) DATA_PTR(self);
+
+  return mrb_fixnum_value(pollitem->fd);
+}
+
+static mrb_value
+mrb_pollitem_set_events(mrb_state *mrb, mrb_value self)
+{
+  zmq_pollitem_t *pollitem = (zmq_pollitem_t *) DATA_PTR(self);
+
+  mrb_int events;
+
+  mrb_get_args(mrb, "i", &events);
+
+  pollitem->events = events;
+
+  return self;
+}
+
+static mrb_value
+mrb_pollitem_revents(mrb_state *mrb, mrb_value self)
+{
+  zmq_pollitem_t *pollitem = (zmq_pollitem_t *) DATA_PTR(self);
+
+  return mrb_fixnum_value(pollitem->revents);
+}
+
+static mrb_value
+mrb_zmq_poll(mrb_state *mrb, mrb_value self)
+{
+  mrb_value pollitems_obj;
+  mrb_int timeout;
+
+  mrb_get_args(mrb, "Ai", &pollitems_obj, &timeout);
+
+  zmq_pollitem_t pollitems[RARRAY_LEN(pollitems_obj)];
+
+  for(mrb_int i = 0; i < RARRAY_LEN(pollitems_obj); i++)
+    pollitems[i] = *DATA_CHECK_GET_PTR(mrb, mrb_ary_ref(mrb, pollitems_obj, i), &mrb_pollitem_type, zmq_pollitem_t);
+
+  int rc = zmq_poll(pollitems, RARRAY_LEN(pollitems_obj), timeout * ZMQ_POLL_MSEC);
+
+  if (rc == -1||zsys_interrupted)
+    return mrb_symbol_value(mrb_intern_lit(mrb, "terminated"));
+  else
+  if (rc == 0)
+    return mrb_symbol_value(mrb_intern_lit(mrb, "expired"));
+  else {
+    mrb_value signaled_items = mrb_ary_new_capa(mrb, rc);
+
+    for(mrb_int i = 0; i < RARRAY_LEN(pollitems_obj); i++) {
+      if (pollitems[i].revents) {
+        mrb_value signaled = mrb_ary_ref(mrb, pollitems_obj, i);
+        ((zmq_pollitem_t *) DATA_PTR(signaled))->revents = pollitems[i].revents;
+        mrb_ary_push(mrb, signaled_items, signaled);
+      }
+    }
+
+    return signaled_items;
+  }
+}
+
 void
 mrb_mruby_czmq_gem_init(mrb_state* mrb) {
   struct RClass *zmq_mod, *czmq_mod, *zarmour_class, *zclock_mod, *zsys_mod, *zsock_class,
-  *zframe_class, *zactor_class, *zconfig_class, *zpoller_class;
+  *zframe_class, *zactor_class, *zconfig_class, *zpoller_class, *pollitem_class;
 
   zmq_mod = mrb_define_module(mrb, "ZMQ");
   mrb_define_const(mrb, zmq_mod, "PAIR",    mrb_fixnum_value(ZMQ_PAIR));
@@ -994,6 +1063,14 @@ mrb_mruby_czmq_gem_init(mrb_state* mrb) {
   mrb_define_const(mrb, zmq_mod, "XPUB",    mrb_fixnum_value(ZMQ_XPUB));
   mrb_define_const(mrb, zmq_mod, "XSUB",    mrb_fixnum_value(ZMQ_XSUB));
   mrb_define_const(mrb, zmq_mod, "STREAM",  mrb_fixnum_value(ZMQ_STREAM));
+  mrb_define_const(mrb, zmq_mod, "POLLIN",  mrb_fixnum_value(ZMQ_POLLIN));
+  mrb_define_const(mrb, zmq_mod, "POLLOUT", mrb_fixnum_value(ZMQ_POLLOUT));
+  mrb_define_const(mrb, zmq_mod, "POLLERR", mrb_fixnum_value(ZMQ_POLLERR));
+#if defined(ZMQ_POLLPRI)
+  mrb_define_const(mrb, zmq_mod, "POLLPRI", mrb_fixnum_value(ZMQ_POLLPRI));
+#endif
+
+  mrb_define_module_function(mrb, zmq_mod, "poll", mrb_zmq_poll, MRB_ARGS_REQ(2));
 
   czmq_mod = mrb_define_module(mrb, "CZMQ");
   mrb_define_class_under(mrb, czmq_mod, "Error", E_RUNTIME_ERROR);
@@ -1021,6 +1098,7 @@ mrb_mruby_czmq_gem_init(mrb_state* mrb) {
   mrb_define_module_function(mrb, zsys_mod, "interface",    mrb_zsys_interface,       MRB_ARGS_NONE());
   mrb_define_module_function(mrb, zsys_mod, "interrupted?", mrb_zsys_interrupted,     MRB_ARGS_NONE());
   mrb_define_module_function(mrb, zsys_mod, "interrupted=", mrb_set_zsys_interrupted, MRB_ARGS_REQ(1));
+  mrb_define_module_function(mrb, zsys_mod, "create_pipe",  mrb_zsys_create_pipe,     MRB_ARGS_NONE());
 
   zsock_class = mrb_define_class_under(mrb, czmq_mod, "Zsock", mrb->object_class);
   MRB_SET_INSTANCE_TT(zsock_class, MRB_TT_DATA);
@@ -1086,6 +1164,14 @@ mrb_mruby_czmq_gem_init(mrb_state* mrb) {
   mrb_define_method(mrb, zpoller_class, "expired?",           mrb_zpoller_expired,            MRB_ARGS_NONE());
   mrb_define_method(mrb, zpoller_class, "terminated?",        mrb_zpoller_terminated,         MRB_ARGS_NONE());
   mrb_define_method(mrb, zpoller_class, "ignore_interrupts",  mrb_zpoller_ignore_interrupts,  MRB_ARGS_NONE());
+
+  pollitem_class = mrb_define_class_under(mrb, zmq_mod, "Pollitem", mrb->object_class);
+  MRB_SET_INSTANCE_TT(pollitem_class, MRB_TT_DATA);
+  mrb_define_method(mrb, pollitem_class, "initialize",  mrb_pollitem_new,         MRB_ARGS_OPT(3));
+  mrb_define_method(mrb, pollitem_class, "socket",      mrb_pollitem_socket,      MRB_ARGS_NONE());
+  mrb_define_method(mrb, pollitem_class, "fd",          mrb_pollitem_fd,          MRB_ARGS_NONE());
+  mrb_define_method(mrb, pollitem_class, "events=",     mrb_pollitem_set_events,  MRB_ARGS_REQ(1));
+  mrb_define_method(mrb, pollitem_class, "revents",     mrb_pollitem_revents,     MRB_ARGS_NONE());
 
   size_t native_size = sizeof(intptr_t);
   if (sizeof(mrb_int) != native_size)
