@@ -384,8 +384,8 @@ static mrb_value
 mrb_zsock_identity(mrb_state *mrb, mrb_value self)
 {
 #if defined (ZMQ_IDENTITY)
-  uint8_t id [256];
-  size_t id_size = 256;
+  uint8_t id [255];
+  size_t id_size = 255;
   zmq_getsockopt (zsock_resolve ((zsock_t *) DATA_PTR(self)), ZMQ_IDENTITY, id, &id_size);
   return mrb_str_new(mrb, (const char *) id, id_size);
 #else

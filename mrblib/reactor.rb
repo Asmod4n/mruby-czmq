@@ -88,13 +88,13 @@ module CZMQ
     end
 
     def reader(socket, &block)
-      if @readers.has_key?(socket)
-        raise ArgumentError, "each sock can only be polled once"
-      end
       raise ArgumentError, "no block given" unless block_given?
-      @poller.add(socket)
-      @readers[socket] = block
-      self
+      unless @readers.has_key?(socket)
+        @poller.add(socket)
+        @readers[socket] = []
+      end
+      @readers[socket] << block
+      block
     end
 
     def reader_end(socket)
@@ -111,7 +111,6 @@ module CZMQ
 
     def timer_end(timer)
       @timers.delete(timer)
-      self
     end
 
     def ticket(&block)
@@ -122,7 +121,7 @@ module CZMQ
     end
 
     def ticket_reset(ticket)
-      ticket = @tickets.delete_at(@tickets.index(ticket))
+      ticket = @tickets.delete_at(@tickets.rindex(ticket))
       @tickets << ticket
       ticket.when = Zclock.mono + @ticket_delay
       ticket
@@ -130,19 +129,6 @@ module CZMQ
 
     def ticket_delete(ticket)
       @tickets.delete_at(@tickets.index(ticket))
-      self
-    end
-
-    def tickless
-      tickless = Zclock.mono + 1000
-      unless @timers.empty?
-        tickless = @timers.min.when
-      end
-      if (ticket = @tickets.first)
-        tickless = ticket.when
-      end
-      timeout = tickless - Zclock.mono
-      timeout < 0 ? 0 : timeout
     end
 
     def run
@@ -151,7 +137,7 @@ module CZMQ
           break
         end
         if (socket = @poller.wait(tickless))
-          @readers[socket].call(socket)
+          @readers[socket].each {|block| block.call(socket)}
         end
         @timers.select {|timer| Zclock.mono >= timer.when}.each {|timer| timer.call}
         @tickets.take_while {|ticket| Zclock.mono >= ticket.when}.each {|ticket| ticket.call}
@@ -164,7 +150,7 @@ module CZMQ
         return self
       end
       if (socket = @poller.wait(tickless))
-        @readers[socket].call(socket)
+        @readers[socket].each {|block| block.call(socket)}
       end
       @timers.select {|timer| Zclock.mono >= timer.when}.each {|timer| timer.call}
       @tickets.take_while {|ticket| Zclock.mono >= ticket.when}.each {|ticket| ticket.call}
@@ -176,11 +162,25 @@ module CZMQ
         return self
       end
       if (socket = @poller.wait(0))
-        @readers[socket].call(socket)
+        @readers[socket].each {|block| block.call(socket)}
       end
       @timers.select {|timer| Zclock.mono >= timer.when}.each {|timer| timer.call}
       @tickets.take_while {|ticket| Zclock.mono >= ticket.when}.each {|ticket| ticket.call}
       self
+    end
+
+    # private
+
+    def tickless
+      tickless = Zclock.mono + 1000
+      unless @timers.empty?
+        tickless = @timers.min.when
+      end
+      if (ticket = @tickets.first)
+        tickless = ticket.when
+      end
+      timeout = tickless - Zclock.mono
+      timeout < 0 ? 0 : timeout
     end
   end
 end
