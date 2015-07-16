@@ -68,9 +68,9 @@ module CZMQ
 
     def initialize
       @poller = ZMQ::Poller.new
+      @pollers = {}
       @timers = []
       @tickets = []
-      @readers = {}
       @interrupted = false
       @ticket_delay = nil
     end
@@ -82,17 +82,16 @@ module CZMQ
       @ticket_delay = delay
     end
 
-    def reader(socket, &block)
+    def poller(socket, events = ZMQ::POLLIN, &block)
       raise ArgumentError, "no block given" unless block_given?
-      pollitem = @poller.add(socket)
-      @readers[socket] ||= []
-      @readers[socket] << block
+      pollitem = @poller.add(socket, events)
+      @pollers[pollitem] = block
       pollitem
     end
 
-    def reader_end(socket)
+    def poller_end(socket)
       @poller.remove socket
-      @readers.delete socket
+      @pollers.delete_if {|pollitem, _| pollitem.socket == socket}
       self
     end
 
@@ -104,6 +103,7 @@ module CZMQ
 
     def timer_end(timer)
       @timers.delete(timer)
+      self
     end
 
     def ticket(&block)
@@ -117,20 +117,21 @@ module CZMQ
       ticket = @tickets.delete_at(@tickets.rindex(ticket))
       @tickets << ticket
       ticket.when = Zclock.mono + @ticket_delay
-      ticket
+      self
     end
 
     def ticket_delete(ticket)
       @tickets.delete_at(@tickets.index(ticket))
+      self
     end
 
     def run
-      until Zsys.interrupted? ||@interrupted
-        if @timers.empty? && @readers.empty? && @tickets.empty?
+      until (pollitems = @poller.wait(tickless)) == :terminated||@interrupted
+        if @pollers.empty? && @timers.empty? && @tickets.empty?
           break
         end
-        if (sockets = @poller.wait(tickless)).is_a? Array
-          sockets.each {|socket| @readers[socket].each {|block| block.call(socket)}}
+        if pollitems.respond_to? :each
+          pollitems.each {|pollitem| @pollers[pollitem].call(pollitem)}
         end
         @timers.select {|timer| Zclock.mono >= timer.when}.each {|timer| timer.call}
         @tickets.take_while {|ticket| Zclock.mono >= ticket.when}.each {|ticket| ticket.call}
@@ -139,11 +140,14 @@ module CZMQ
     end
 
     def run_once
-      if @timers.empty? && @readers.empty? && @tickets.empty?
+      if @pollers.empty? && @timers.empty? && @tickets.empty?
         return self
       end
-      if (sockets = @poller.wait(tickless)).is_a? Array
-        sockets.each {|socket| @readers[socket].each {|block| block.call(socket)}}
+      pollitems = @poller.wait(tickless)
+      if pollitems == :terminated
+        return pollitems
+      elsif pollitems.respond_to? :each
+        pollitems.each {|pollitem| @pollers[pollitem].call(pollitem)}
       end
       @timers.select {|timer| Zclock.mono >= timer.when}.each {|timer| timer.call}
       @tickets.take_while {|ticket| Zclock.mono >= ticket.when}.each {|ticket| ticket.call}
@@ -151,11 +155,14 @@ module CZMQ
     end
 
     def run_nowait
-      if @timers.empty? && @readers.empty? && @tickets.empty?
+      if @pollers.empty? && @timers.empty? && @tickets.empty?
         return self
       end
-      if (sockets = @poller.wait(0)).is_a? Array
-        sockets.each {|socket| @readers[socket].each {|block| block.call(socket)}}
+      pollitems = @poller.wait(0)
+      if pollitems == :terminated
+        return pollitems
+      elsif pollitems.respond_to? :each
+        pollitems.each {|pollitem| @pollers[pollitem].call(pollitem)}
       end
       @timers.select {|timer| Zclock.mono >= timer.when}.each {|timer| timer.call}
       @tickets.take_while {|ticket| Zclock.mono >= ticket.when}.each {|ticket| ticket.call}

@@ -1,29 +1,24 @@
 module ZMQ
   class Poller
     def initialize
-      @sockets = {}
+      @pollitems = []
     end
 
     def add(socket, events = POLLIN)
       pollitem = Pollitem.new(socket, events)
-      @sockets[pollitem] = socket
+      @pollitems << pollitem
       pollitem
     end
 
     alias :<< :add
 
     def remove(socket)
-      @sockets.delete_if {|k, v| v == socket}
+      @pollitems.delete_if {|pollitem| pollitem.socket == socket}
       self
     end
 
     def wait(timeout = -1)
-      rc = ZMQ.poll(@sockets.keys, timeout)
-      if rc.respond_to? :map!
-        rc.map! {|poller| @sockets[poller]}
-      else
-        rc
-      end
+      ZMQ.poll(@pollitems, timeout)
     end
   end
 end
