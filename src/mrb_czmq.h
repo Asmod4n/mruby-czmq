@@ -55,22 +55,8 @@ static const struct mrb_data_type mrb_zconfig_type = {
   "$i_mrb_zconfig_type", mrb_zconfig_destroy
 };
 
-static void
-mrb_zpoller_destroy(mrb_state *mrb, void *p)
-{
-  zpoller_destroy((zpoller_t **) &p);
-}
-
-static const struct mrb_data_type mrb_zpoller_type = {
-  "$i_mrb_zpoller_type", mrb_zpoller_destroy
-};
-
 static const struct mrb_data_type mrb_pollitem_type = {
   "$i_mrb_pollitem_type", mrb_free
-};
-
-static const struct mrb_data_type mrb_pollitems_type = {
-  "$i_mrb_pollitems_type", mrb_free
 };
 
 #endif
