@@ -944,23 +944,25 @@ mrb_zpoller_ignore_interrupts(mrb_state *mrb, mrb_value self)
 static mrb_value
 mrb_pollitem_new(mrb_state *mrb, mrb_value self)
 {
-  mrb_value socket_obj = mrb_nil_value();
-  mrb_int fd = 0;
+  mrb_value socket_or_fd = mrb_nil_value();
   mrb_int events = ZMQ_POLLIN;
 
-  mrb_get_args(mrb, "|oii", &socket_obj, &fd, &events);
+  mrb_get_args(mrb, "|oi", &socket_or_fd, &events);
 
   zmq_pollitem_t *pollitem = mrb_calloc(mrb, 1, sizeof(zmq_pollitem_t));
   mrb_data_init(self, pollitem, &mrb_pollitem_type);
 
-  mrb_iv_set(mrb, self, mrb_intern_lit(mrb, "socket"), socket_obj);
+  mrb_iv_set(mrb, self, mrb_intern_lit(mrb, "socket"), socket_or_fd);
 
-  switch (mrb_type(socket_obj)) {
+  switch (mrb_type(socket_or_fd)) {
     case MRB_TT_CPTR:
-      pollitem->socket = mrb_cptr(socket_obj);
+      pollitem->socket = mrb_cptr(socket_or_fd);
       break;
     case MRB_TT_DATA:
-      pollitem->socket = zsock_resolve(mrb_data_check_get_ptr(mrb, socket_obj, &mrb_zsock_actor_type));
+      pollitem->socket = zsock_resolve(mrb_data_check_get_ptr(mrb, socket_or_fd, &mrb_zsock_actor_type));
+      break;
+    case MRB_TT_FIXNUM:
+      pollitem->fd = mrb_int(mrb, socket_or_fd);
       break;
     case MRB_TT_FALSE:
       break;
@@ -968,7 +970,6 @@ mrb_pollitem_new(mrb_state *mrb, mrb_value self)
       mrb_raise(mrb, E_ARGUMENT_ERROR, "dafug");
   }
 
-  pollitem->fd = fd;
   pollitem->events = events;
 
   return self;
@@ -1167,7 +1168,7 @@ mrb_mruby_czmq_gem_init(mrb_state* mrb) {
 
   pollitem_class = mrb_define_class_under(mrb, zmq_mod, "Pollitem", mrb->object_class);
   MRB_SET_INSTANCE_TT(pollitem_class, MRB_TT_DATA);
-  mrb_define_method(mrb, pollitem_class, "initialize",  mrb_pollitem_new,         MRB_ARGS_OPT(3));
+  mrb_define_method(mrb, pollitem_class, "initialize",  mrb_pollitem_new,         MRB_ARGS_OPT(2));
   mrb_define_method(mrb, pollitem_class, "socket",      mrb_pollitem_socket,      MRB_ARGS_NONE());
   mrb_define_method(mrb, pollitem_class, "fd",          mrb_pollitem_fd,          MRB_ARGS_NONE());
   mrb_define_method(mrb, pollitem_class, "events=",     mrb_pollitem_set_events,  MRB_ARGS_REQ(1));
