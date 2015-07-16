@@ -817,10 +817,10 @@ mrb_pollitem_new(mrb_state *mrb, mrb_value self)
       if (DATA_TYPE(socket_or_fd) == &mrb_zsock_actor_type)
         pollitem->socket = zsock_resolve(mrb_data_check_get_ptr(mrb, socket_or_fd, &mrb_zsock_actor_type));
       else
-      if (mrb_obj_respond_to(mrb, socket_or_fd, mrb_intern_lit(mrb, "fileno")))
+      if (mrb_obj_respond_to(mrb, mrb_class_ptr(socket_or_fd), mrb_intern_lit(mrb, "fileno")))
         pollitem->fd = mrb_int(mrb, mrb_funcall(mrb, socket_or_fd, "fileno", 0, NULL));
       else
-        mrb_raise(mrb, E_ARGUMENT_ERROR, "dafuq")
+        mrb_raise(mrb, E_ARGUMENT_ERROR, "dafuq");
     }
       break;
     case MRB_TT_FIXNUM:
