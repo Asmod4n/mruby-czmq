@@ -3,4 +3,5 @@
   spec.author  = 'Hendrik Beskow'
   spec.summary = 'mruby bindings for czmq'
   spec.linker.libraries << 'czmq' << 'zmq'
+  spec.add_dependency 'mruby-errno'
 end

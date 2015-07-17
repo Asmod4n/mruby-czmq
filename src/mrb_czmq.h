@@ -1,6 +1,7 @@
 ﻿#ifndef MRB_CZMQ_H
 #define MRB_CZMQ_H
 
+#include <errno.h>
 #include <czmq.h>
 #include <mruby/data.h>
 #include <mruby/class.h>
@@ -8,6 +9,7 @@
 #include <mruby/hash.h>
 #include <mruby/array.h>
 #include <mruby/string.h>
+#include <mruby/error.h>
 
 static void
 mrb_zsock_actor_destroy(mrb_state *mrb, void *p)

@@ -49,6 +49,7 @@ mrb_zclock_usecs(mrb_state *mrb, mrb_value self)
 static mrb_value
 mrb_zclock_timestr(mrb_state *mrb, mrb_value self)
 {
+  errno = 0;
   char *timestr = zclock_timestr();
   if (timestr) {
     mrb_value time_obj = mrb_str_new_cstr(mrb, timestr);
@@ -56,7 +57,14 @@ mrb_zclock_timestr(mrb_state *mrb, mrb_value self)
     return time_obj;
   }
   else
-    mrb_raise(mrb, E_CZMQ_ERROR, zmq_strerror(zmq_errno()));
+  if (errno == ENOMEM) {
+    mrb->out_of_memory = TRUE;
+    mrb_exc_raise(mrb, mrb_obj_value(mrb->nomem_err));
+  }
+  else
+    mrb_sys_fail(mrb, "zclock_timestr");
+
+  return self;
 }
 
 static mrb_value
@@ -151,6 +159,7 @@ mrb_set_zsys_interrupted(mrb_state *mrb, mrb_value self)
 static mrb_value
 mrb_zsys_create_pipe(mrb_state *mrb, mrb_value self)
 {
+  errno = 0;
   zsock_t *backend;
   zsock_t *frontend = zsys_create_pipe(&backend);
 
@@ -166,7 +175,14 @@ mrb_zsys_create_pipe(mrb_state *mrb, mrb_value self)
             backend, &mrb_zsock_actor_type)));
   }
   else
-    mrb_raise(mrb, E_CZMQ_ERROR, zmq_strerror(zmq_errno()));
+  if (errno == ENOMEM) {
+    mrb->out_of_memory = TRUE;
+    mrb_exc_raise(mrb, mrb_obj_value(mrb->nomem_err));
+  }
+  else
+    mrb_sys_fail(mrb, "zsys_create_pipe");
+
+  return self;
 }
 
 static mrb_value
@@ -193,11 +209,18 @@ mrb_zsock_new(mrb_state *mrb, mrb_value self)
   if (type < INT_MIN ||type > INT_MAX)
     mrb_raise(mrb, E_RANGE_ERROR, "type is ouf of range");
 
+  errno = 0;
+
   zsock = zsock_new((int) type);
   if (zsock)
     mrb_data_init(self, zsock, &mrb_zsock_actor_type);
   else
-    mrb_raise(mrb, E_CZMQ_ERROR, zmq_strerror(zmq_errno()));
+  if (errno == ENOMEM) {
+    mrb->out_of_memory = TRUE;
+    mrb_exc_raise(mrb, mrb_obj_value(mrb->nomem_err));
+  }
+  else
+    mrb_sys_fail(mrb, "zsock_new");
 
   return self;
 }
@@ -210,15 +233,26 @@ mrb_zsock_bind(mrb_state *mrb, mrb_value self)
 
   mrb_get_args(mrb, "z", &endpoint);
 
+  errno = 0;
+
   port = zsock_bind((zsock_t *) DATA_PTR(self), "%s", endpoint);
   if (port != -1) {
+#if !defined(MRB_INT64)
     if (port > MRB_INT_MAX)
       return mrb_float_value(mrb, port);
     else
+#endif
       return mrb_fixnum_value(port);
   }
   else
-    mrb_raise(mrb, E_CZMQ_ERROR, zmq_strerror(zmq_errno()));
+  if (errno == ENOMEM) {
+    mrb->out_of_memory = TRUE;
+    mrb_exc_raise(mrb, mrb_obj_value(mrb->nomem_err));
+  }
+  else
+    mrb_sys_fail(mrb, "zsock_bind");
+
+  return self;
 }
 
 static mrb_value
@@ -228,10 +262,17 @@ mrb_zsock_unbind(mrb_state *mrb, mrb_value self)
 
   mrb_get_args(mrb, "z", &endpoint);
 
-  if (zsock_unbind((zsock_t *) DATA_PTR(self), "%s", endpoint) == 0)
-    return self;
-  else
-    mrb_raise(mrb, E_CZMQ_ERROR, zmq_strerror(zmq_errno()));
+  errno = 0;
+
+  if (zsock_unbind((zsock_t *) DATA_PTR(self), "%s", endpoint) == -1) {
+    if (errno == ENOMEM) {
+      mrb->out_of_memory = TRUE;
+      mrb_exc_raise(mrb, mrb_obj_value(mrb->nomem_err));
+    }
+    else
+      mrb_sys_fail(mrb, "zsock_unbind");
+  }
+  return self;
 }
 
 static mrb_value
@@ -241,10 +282,18 @@ mrb_zsock_connect(mrb_state *mrb, mrb_value self)
 
   mrb_get_args(mrb, "z", &endpoint);
 
-  if (zsock_connect((zsock_t *) DATA_PTR(self), "%s", endpoint) == 0)
-    return self;
-  else
-    mrb_raise(mrb, E_CZMQ_ERROR, zmq_strerror(zmq_errno()));
+  errno = 0;
+
+  if (zsock_connect((zsock_t *) DATA_PTR(self), "%s", endpoint) == -1) {
+    if (errno == ENOMEM) {
+      mrb->out_of_memory = TRUE;
+      mrb_exc_raise(mrb, mrb_obj_value(mrb->nomem_err));
+    }
+    else
+      mrb_sys_fail(mrb, "zsock_connect");
+  }
+
+  return self;
 }
 
 static mrb_value
@@ -254,10 +303,18 @@ mrb_zsock_disconnect(mrb_state *mrb, mrb_value self)
 
   mrb_get_args(mrb, "z", &endpoint);
 
-  if (zsock_disconnect((zsock_t *) DATA_PTR(self), "%s", endpoint) == 0)
-    return self;
-  else
-    mrb_raise(mrb, E_CZMQ_ERROR, zmq_strerror(zmq_errno()));
+  errno = 0;
+
+  if (zsock_disconnect((zsock_t *) DATA_PTR(self), "%s", endpoint) == -1) {
+    if (errno == ENOMEM) {
+      mrb->out_of_memory = TRUE;
+      mrb_exc_raise(mrb, mrb_obj_value(mrb->nomem_err));
+    }
+    else
+      mrb_sys_fail(mrb, "zsock_disconnect");
+  }
+
+  return self;
 }
 
 static mrb_value
@@ -268,10 +325,18 @@ mrb_zsock_attach(mrb_state *mrb, mrb_value self)
 
   mrb_get_args(mrb, "z|b", &endpoints, &serverish);
 
-  if (zsock_attach((zsock_t *) DATA_PTR(self), endpoints, serverish) == 0)
-    return self;
-  else
-    mrb_raise(mrb, E_CZMQ_ERROR, zmq_strerror(zmq_errno()));
+  errno = 0;
+
+  if (zsock_attach((zsock_t *) DATA_PTR(self), endpoints, serverish) == -1) {
+    if (errno == ENOMEM) {
+      mrb->out_of_memory = TRUE;
+      mrb_exc_raise(mrb, mrb_obj_value(mrb->nomem_err));
+    }
+    else
+      mrb_sys_fail(mrb, "zsock_attach");
+  }
+
+  return self;
 }
 
 static mrb_value
@@ -292,10 +357,18 @@ mrb_zsock_signal(mrb_state *mrb, mrb_value self)
   if (status < 0 ||status > UCHAR_MAX)
     mrb_raise(mrb, E_RANGE_ERROR, "status is out of range");
 
-  if (zsock_signal((zsock_t *) DATA_PTR(self), (byte) status) == 0)
-    return self;
-  else
-    mrb_raise(mrb, E_CZMQ_ERROR, zmq_strerror(zmq_errno()));
+  errno = 0;
+
+  if (zsock_signal((zsock_t *) DATA_PTR(self), (byte) status) == -1) {
+    if (errno == ENOMEM) {
+      mrb->out_of_memory = TRUE;
+      mrb_exc_raise(mrb, mrb_obj_value(mrb->nomem_err));
+    }
+    else
+      mrb_sys_fail(mrb, "zsock_signal");
+  }
+
+  return self;
 }
 
 static mrb_value
@@ -353,6 +426,8 @@ mrb_zsock_sendx(mrb_state *mrb, mrb_value self)
   if (argc < 1)
     mrb_raise(mrb, E_ARGUMENT_ERROR, "wrong number of Arguments");
 
+  errno = 0;
+
   msg = zmsg_new();
   if (msg) {
     argv_end = argv + argc;
@@ -360,19 +435,33 @@ mrb_zsock_sendx(mrb_state *mrb, mrb_value self)
       s = mrb_str_to_str(mrb, *argv);
       if (zmsg_addmem(msg, RSTRING_PTR(s), (size_t) RSTRING_LEN(s)) == -1) {
         zmsg_destroy(&msg);
-        mrb_raise(mrb, E_CZMQ_ERROR, zmq_strerror(zmq_errno()));
+        if (errno == ENOMEM) {
+          mrb->out_of_memory = TRUE;
+          mrb_exc_raise(mrb, mrb_obj_value(mrb->nomem_err));
+        }
+        else
+          mrb_sys_fail(mrb, "zsock_sendx");
       }
     }
-
-    if (zmsg_send(&msg, (zsock_t *) DATA_PTR(self)) == 0)
-      return self;
-    else {
+    if (zmsg_send(&msg, (zsock_t *) DATA_PTR(self)) == -1) {
       zmsg_destroy(&msg);
-      mrb_raise(mrb, E_CZMQ_ERROR, zmq_strerror(zmq_errno()));
+      if (errno == ENOMEM) {
+        mrb->out_of_memory = TRUE;
+        mrb_exc_raise(mrb, mrb_obj_value(mrb->nomem_err));
+      }
+      else
+        mrb_sys_fail(mrb, "zsock_sendx");
     }
   }
   else
-    mrb_raise(mrb, E_CZMQ_ERROR, zmq_strerror(zmq_errno()));
+  if (errno == ENOMEM) {
+    mrb->out_of_memory = TRUE;
+    mrb_exc_raise(mrb, mrb_obj_value(mrb->nomem_err));
+  }
+  else
+    mrb_sys_fail(mrb, "zsock_sendx");
+
+  return self;
 }
 
 static mrb_value
@@ -384,14 +473,20 @@ mrb_zframe_new(mrb_state *mrb, mrb_value self)
 
   mrb_get_args(mrb, "|s", &data, &size);
 
-  zframe = zframe_new(data, size);
-  if (zframe) {
-    mrb_data_init(self, zframe, &mrb_zframe_type);
+  errno = 0;
 
-    return self;
+  zframe = zframe_new(data, size);
+  if (zframe)
+    mrb_data_init(self, zframe, &mrb_zframe_type);
+  else
+  if (errno == ENOMEM) {
+    mrb->out_of_memory = TRUE;
+    mrb_exc_raise(mrb, mrb_obj_value(mrb->nomem_err));
   }
   else
-    mrb_raise(mrb, E_CZMQ_ERROR, zmq_strerror(zmq_errno()));
+    mrb_sys_fail(mrb, "zframe_new");
+
+  return self;
 }
 
 static mrb_value
@@ -402,12 +497,21 @@ mrb_zframe_recv(mrb_state *mrb, mrb_value self)
 
   mrb_get_args(mrb, "d", &zsock_actor, &mrb_zsock_actor_type);
 
+  errno = 0;
+
   zframe = zframe_recv(zsock_actor);
   if (zframe)
     return mrb_obj_value(mrb_data_object_alloc(mrb, mrb_class_ptr(self),
       zframe, &mrb_zframe_type));
   else
-    mrb_raise(mrb, E_CZMQ_ERROR, zmq_strerror(zmq_errno()));
+  if (errno == ENOMEM) {
+    mrb->out_of_memory = TRUE;
+    mrb_exc_raise(mrb, mrb_obj_value(mrb->nomem_err));
+  }
+  else
+    mrb_sys_fail(mrb, "zframe_recv");
+
+  return self;
 }
 
 static mrb_value
@@ -467,10 +571,19 @@ mrb_zframe_send(mrb_state *mrb, mrb_value self)
   if (flags < 0 ||flags > INT_MAX)
     mrb_raise(mrb, E_RANGE_ERROR, "flags are out of range");
 
+  errno = 0;
+
   if (zframe_send((zframe_t **) &DATA_PTR(self), zsock_actor, (int) flags) == 0)
     return mrb_true_value();
   else
-    mrb_raise(mrb, E_CZMQ_ERROR, zmq_strerror(zmq_errno()));
+  if (errno == ENOMEM) {
+    mrb->out_of_memory = TRUE;
+    mrb_exc_raise(mrb, mrb_obj_value(mrb->nomem_err));
+  }
+  else
+    mrb_sys_fail(mrb, "zframe_send");
+
+  return self;
 }
 
 static mrb_value
@@ -489,6 +602,8 @@ mrb_zsock_recvx(mrb_state *mrb, mrb_value self)
   mrb_value msgs;
   zframe_t *zframe;
 
+  errno = 0;
+
   msg = zmsg_recv(DATA_PTR(self));
   if (msg) {
     msgs = mrb_ary_new_capa(mrb, zmsg_size(msg));
@@ -504,27 +619,50 @@ mrb_zsock_recvx(mrb_state *mrb, mrb_value self)
     return msgs;
   }
   else
-    mrb_raise(mrb, E_CZMQ_ERROR, zmq_strerror(zmq_errno()));
+  if (errno == ENOMEM) {
+    mrb->out_of_memory = TRUE;
+    mrb_exc_raise(mrb, mrb_obj_value(mrb->nomem_err));
+  }
+  else
+    mrb_sys_fail(mrb, "zsock_recvx");
+
+  return self;
 }
 
 static mrb_value
 mrb_zactor_new_zauth(mrb_state *mrb, mrb_value self)
 {
+  errno = 0;
   zactor_t *zactor = zactor_new(zauth, NULL);
   if (zactor)
     return mrb_obj_value(mrb_data_object_alloc(mrb, mrb_class_ptr(self), zactor, &mrb_zsock_actor_type));
   else
-    mrb_raise(mrb, E_CZMQ_ERROR, zmq_strerror(zmq_errno()));
+  if (errno == ENOMEM) {
+    mrb->out_of_memory = TRUE;
+    mrb_exc_raise(mrb, mrb_obj_value(mrb->nomem_err));
+  }
+  else
+    mrb_sys_fail(mrb, "zactor_new_zauth");
+
+  return self;
 }
 
 static mrb_value
 mrb_zactor_new_zbeacon(mrb_state *mrb, mrb_value self)
 {
+  errno = 0;
   zactor_t *zactor = zactor_new(zbeacon, NULL);
   if (zactor)
     return mrb_obj_value(mrb_data_object_alloc(mrb, mrb_class_ptr(self), zactor, &mrb_zsock_actor_type));
   else
-    mrb_raise(mrb, E_CZMQ_ERROR, zmq_strerror(zmq_errno()));
+  if (errno == ENOMEM) {
+    mrb->out_of_memory = TRUE;
+    mrb_exc_raise(mrb, mrb_obj_value(mrb->nomem_err));
+  }
+  else
+    mrb_sys_fail(mrb, "zactor_new_zbeacon");
+
+  return self;
 }
 
 static mrb_value
@@ -535,11 +673,20 @@ mrb_zactor_new_zgossip(mrb_state *mrb, mrb_value self)
 
   mrb_get_args(mrb, "|z", &prefix);
 
+  errno = 0;
+
   zactor = zactor_new(zgossip, prefix);
   if (zactor)
     return mrb_obj_value(mrb_data_object_alloc(mrb, mrb_class_ptr(self), zactor, &mrb_zsock_actor_type));
   else
-    mrb_raise(mrb, E_CZMQ_ERROR, zmq_strerror(zmq_errno()));
+  if (errno == ENOMEM) {
+    mrb->out_of_memory = TRUE;
+    mrb_exc_raise(mrb, mrb_obj_value(mrb->nomem_err));
+  }
+  else
+    mrb_sys_fail(mrb, "zactor_new_zgossip");
+
+  return self;
 }
 
 static mrb_value
@@ -550,21 +697,38 @@ mrb_zactor_new_zmonitor(mrb_state *mrb, mrb_value self)
 
   mrb_get_args(mrb, "d", &zsock_actor, &mrb_zsock_actor_type);
 
+  errno = 0;
+
   zactor = zactor_new(zmonitor, zsock_actor);
   if (zactor)
     return mrb_obj_value(mrb_data_object_alloc(mrb, mrb_class_ptr(self), zactor, &mrb_zsock_actor_type));
   else
-    mrb_raise(mrb, E_CZMQ_ERROR, zmq_strerror(zmq_errno()));
+  if (errno == ENOMEM) {
+    mrb->out_of_memory = TRUE;
+    mrb_exc_raise(mrb, mrb_obj_value(mrb->nomem_err));
+  }
+  else
+    mrb_sys_fail(mrb, "zactor_new_zmonitor");
+
+  return self;
 }
 
 static mrb_value
 mrb_zactor_new_zproxy(mrb_state *mrb, mrb_value self)
 {
+  errno = 0;
   zactor_t *zactor = zactor_new(zproxy, NULL);
   if (zactor)
     return mrb_obj_value(mrb_data_object_alloc(mrb, mrb_class_ptr(self), zactor, &mrb_zsock_actor_type));
   else
-    mrb_raise(mrb, E_CZMQ_ERROR, zmq_strerror(zmq_errno()));
+  if (errno == ENOMEM) {
+    mrb->out_of_memory = TRUE;
+    mrb_exc_raise(mrb, mrb_obj_value(mrb->nomem_err));
+  }
+  else
+    mrb_sys_fail(mrb, "zactor_new_zproxy");
+
+  return self;
 }
 
 static mrb_value
@@ -575,11 +739,18 @@ mrb_zconfig_new(mrb_state *mrb, mrb_value self)
 
   mrb_get_args(mrb, "|z", &name);
 
+  errno = 0;
+
   config = zconfig_new (name, NULL);
   if (config)
     mrb_data_init(self, config, &mrb_zconfig_type);
   else
-    mrb_raise(mrb, E_CZMQ_ERROR, zmq_strerror(zmq_errno()));
+  if (errno == ENOMEM) {
+    mrb->out_of_memory = TRUE;
+    mrb_exc_raise(mrb, mrb_obj_value(mrb->nomem_err));
+  }
+  else
+    mrb_sys_fail(mrb, "zconfig_new");
 
   return self;
 }
@@ -697,12 +868,21 @@ mrb_zconfig_load(mrb_state *mrb, mrb_value self)
 
   mrb_get_args(mrb, "z", &filename);
 
+  errno = 0;
+
   zconfig = zconfig_load(filename);
   if (zconfig)
     return mrb_obj_value(mrb_data_object_alloc(mrb, mrb_class_ptr(self),
       zconfig, &mrb_zconfig_type));
   else
-    mrb_raise(mrb, E_CZMQ_ERROR, zmq_strerror(zmq_errno()));
+  if (errno == ENOMEM) {
+    mrb->out_of_memory = TRUE;
+    mrb_exc_raise(mrb, mrb_obj_value(mrb->nomem_err));
+  }
+  else
+    mrb_sys_fail(mrb, "zconfig_load");
+
+  return self;
 }
 
 static mrb_value
@@ -712,10 +892,18 @@ mrb_zconfig_save(mrb_state *mrb, mrb_value self)
 
   mrb_get_args(mrb, "z", &filename);
 
-  if (zconfig_save((zconfig_t *) DATA_PTR(self), filename) == 0)
-    return self;
-  else
-    mrb_raise(mrb, E_CZMQ_ERROR, zmq_strerror(zmq_errno()));
+  errno = 0;
+
+  if (zconfig_save((zconfig_t *) DATA_PTR(self), filename) == -1) {
+    if (errno == ENOMEM) {
+      mrb->out_of_memory = TRUE;
+      mrb_exc_raise(mrb, mrb_obj_value(mrb->nomem_err));
+    }
+    else
+      mrb_sys_fail(mrb, "zconfig_save");
+  }
+
+  return self;
 }
 
 static mrb_value
@@ -731,10 +919,17 @@ mrb_zconfig_filename(mrb_state *mrb, mrb_value self)
 static mrb_value
 mrb_zconfig_reload(mrb_state *mrb, mrb_value self)
 {
-  if (zconfig_reload((zconfig_t **) &DATA_PTR(self)) == 0)
-    return self;
-  else
-    mrb_raise(mrb, E_CZMQ_ERROR, zmq_strerror(zmq_errno()));
+  errno = 0;
+  if (zconfig_reload((zconfig_t **) &DATA_PTR(self)) == -1) {
+    if (errno == ENOMEM) {
+      mrb->out_of_memory = TRUE;
+      mrb_exc_raise(mrb, mrb_obj_value(mrb->nomem_err));
+    }
+    else
+      mrb_sys_fail(mrb, "zconfig_reload");
+  }
+
+  return self;
 }
 
 static mrb_value
