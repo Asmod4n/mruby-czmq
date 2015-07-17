@@ -133,8 +133,9 @@ module CZMQ
         if pollitems.respond_to? :each
           pollitems.each {|pollitem| @pollers[pollitem].call(pollitem)}
         end
-        @timers.select {|timer| Zclock.mono >= timer.when}.each {|timer| timer.call}
-        @tickets.take_while {|ticket| Zclock.mono >= ticket.when}.each {|ticket| ticket.call}
+        now = Zclock.mono
+        @timers.select {|timer| now >= timer.when}.each {|timer| timer.call}
+        @tickets.take_while {|ticket| now >= ticket.when}.each {|ticket| ticket.call}
       end
       self
     end
@@ -149,8 +150,9 @@ module CZMQ
       elsif pollitems.respond_to? :each
         pollitems.each {|pollitem| @pollers[pollitem].call(pollitem)}
       end
-      @timers.select {|timer| Zclock.mono >= timer.when}.each {|timer| timer.call}
-      @tickets.take_while {|ticket| Zclock.mono >= ticket.when}.each {|ticket| ticket.call}
+      now = Zclock.mono
+      @timers.select {|timer| now >= timer.when}.each {|timer| timer.call}
+      @tickets.take_while {|ticket| now >= ticket.when}.each {|ticket| ticket.call}
       self
     end
 
@@ -164,8 +166,9 @@ module CZMQ
       elsif pollitems.respond_to? :each
         pollitems.each {|pollitem| @pollers[pollitem].call(pollitem)}
       end
-      @timers.select {|timer| Zclock.mono >= timer.when}.each {|timer| timer.call}
-      @tickets.take_while {|ticket| Zclock.mono >= ticket.when}.each {|ticket| ticket.call}
+      now = Zclock.mono
+      @timers.select {|timer| now >= timer.when}.each {|timer| timer.call}
+      @tickets.take_while {|ticket| now >= ticket.when}.each {|ticket| ticket.call}
       self
     end
 
