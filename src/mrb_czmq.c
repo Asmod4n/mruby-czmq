@@ -170,6 +170,19 @@ mrb_zsys_create_pipe(mrb_state *mrb, mrb_value self)
 }
 
 static mrb_value
+mrb_zsys_hostname(mrb_state *mrb, mrb_value self)
+{
+  char *hostname = zsys_hostname();
+  if (hostname) {
+    mrb_value hostname_obj = mrb_str_new_cstr(mrb, hostname);
+    zstr_free(&hostname);
+    return hostname_obj;
+  }
+
+  return mrb_nil_value();
+}
+
+static mrb_value
 mrb_zsock_new(mrb_state *mrb, mrb_value self)
 {
   mrb_int type;
@@ -898,6 +911,7 @@ mrb_mruby_czmq_gem_init(mrb_state* mrb) {
   mrb_define_module_function(mrb, zsys_mod, "interrupted?", mrb_zsys_interrupted,     MRB_ARGS_NONE());
   mrb_define_module_function(mrb, zsys_mod, "interrupted=", mrb_set_zsys_interrupted, MRB_ARGS_REQ(1));
   mrb_define_module_function(mrb, zsys_mod, "create_pipe",  mrb_zsys_create_pipe,     MRB_ARGS_NONE());
+  mrb_define_module_function(mrb, zsys_mod, "hostname",     mrb_zsys_hostname,        MRB_ARGS_NONE());
 
   zsock_class = mrb_define_class_under(mrb, czmq_mod, "Zsock", mrb->object_class);
   MRB_SET_INSTANCE_TT(zsock_class, MRB_TT_DATA);
