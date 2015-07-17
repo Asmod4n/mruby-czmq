@@ -140,27 +140,11 @@ module CZMQ
       self
     end
 
-    def run_once
+    def run_once(timeout = nil)
       if @pollers.empty? && @timers.empty? && @tickets.empty?
         return self
       end
-      pollitems = @poller.wait(tickless)
-      if pollitems == :terminated
-        return pollitems
-      elsif pollitems.respond_to? :each
-        pollitems.each {|pollitem| @pollers[pollitem].call(pollitem)}
-      end
-      now = Zclock.mono
-      @timers.select {|timer| now >= timer.when}.each {|timer| timer.call}
-      @tickets.take_while {|ticket| now >= ticket.when}.each {|ticket| ticket.call}
-      self
-    end
-
-    def run_nowait
-      if @pollers.empty? && @timers.empty? && @tickets.empty?
-        return self
-      end
-      pollitems = @poller.wait(0)
+      pollitems = @poller.wait(tickless(timeout))
       if pollitems == :terminated
         return pollitems
       elsif pollitems.respond_to? :each
@@ -174,16 +158,16 @@ module CZMQ
 
     # private
 
-    def tickless
-      tickless = Zclock.mono + 1000
+    def tickless(timeout = 1000)
+      wann = Zclock.mono + timeout
       unless @timers.empty?
-        tickless = @timers.min.when
+        wann = @timers.min.when
       end
       if (ticket = @tickets.first)
-        tickless = ticket.when
+        wann = ticket.when
       end
-      timeout = tickless - Zclock.mono
-      timeout < 0 ? 0 : timeout
+      tickless = wann - Zclock.mono
+      tickless < 0 ? 0 : tickless
     end
   end
 end

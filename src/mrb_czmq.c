@@ -755,7 +755,7 @@ mrb_pollitem_new(mrb_state *mrb, mrb_value self)
       if (DATA_TYPE(socket_or_fd) == &mrb_zsock_actor_type)
         pollitem->socket = zsock_resolve(mrb_data_check_get_ptr(mrb, socket_or_fd, &mrb_zsock_actor_type));
       else
-      if (mrb_obj_respond_to(mrb, mrb_class_ptr(socket_or_fd), mrb_intern_lit(mrb, "fileno")))
+      if (mrb_obj_respond_to(mrb, mrb_obj_class(mrb, socket_or_fd), mrb_intern_lit(mrb, "fileno")))
         pollitem->fd = mrb_int(mrb, mrb_funcall(mrb, socket_or_fd, "fileno", 0, NULL));
       else
         mrb_raise(mrb, E_ARGUMENT_ERROR, "dafuq");
@@ -782,6 +782,15 @@ mrb_pollitem_socket(mrb_state *mrb, mrb_value self)
 {
   return mrb_iv_get(mrb, self, mrb_intern_lit(mrb, "socket"));
 }
+
+static mrb_value
+mrb_pollitem_events(mrb_state *mrb, mrb_value self)
+{
+  zmq_pollitem_t *pollitem = (zmq_pollitem_t *) DATA_PTR(self);
+
+  return mrb_fixnum_value(pollitem->events);
+}
+
 
 static mrb_value
 mrb_pollitem_set_events(mrb_state *mrb, mrb_value self)
@@ -813,6 +822,9 @@ mrb_zmq_poll(mrb_state *mrb, mrb_value self)
 
   mrb_get_args(mrb, "ai", &pollitems_obj, &pollitems_len, &timeout);
 
+  if (timeout * ZMQ_POLL_MSEC < LONG_MIN||timeout * ZMQ_POLL_MSEC > LONG_MAX)
+    mrb_raise(mrb, E_RANGE_ERROR, "timeout is out of range");
+
   zmq_pollitem_t pollitems[pollitems_len];
 
   for(mrb_int i = 0; i < pollitems_len; i++)
@@ -841,7 +853,7 @@ mrb_zmq_poll(mrb_state *mrb, mrb_value self)
 
 void
 mrb_mruby_czmq_gem_init(mrb_state* mrb) {
-  struct RClass *zmq_mod, *czmq_mod, *zarmour_class, *zclock_mod, *zsys_mod, *zsock_class,
+  struct RClass *zmq_mod, *czmq_mod, *zclock_mod, *zsys_mod, *zsock_class,
   *zframe_class, *zactor_class, *zconfig_class, *pollitem_class;
 
   zmq_mod = mrb_define_module(mrb, "ZMQ");
@@ -946,6 +958,7 @@ mrb_mruby_czmq_gem_init(mrb_state* mrb) {
   MRB_SET_INSTANCE_TT(pollitem_class, MRB_TT_DATA);
   mrb_define_method(mrb, pollitem_class, "initialize",  mrb_pollitem_new,         MRB_ARGS_OPT(2));
   mrb_define_method(mrb, pollitem_class, "socket",      mrb_pollitem_socket,      MRB_ARGS_NONE());
+  mrb_define_method(mrb, pollitem_class, "events",      mrb_pollitem_events,      MRB_ARGS_NONE());
   mrb_define_method(mrb, pollitem_class, "events=",     mrb_pollitem_set_events,  MRB_ARGS_REQ(1));
   mrb_define_method(mrb, pollitem_class, "revents",     mrb_pollitem_revents,     MRB_ARGS_NONE());
 
