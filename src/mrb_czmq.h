@@ -10,16 +10,6 @@
 #include <mruby/string.h>
 
 static void
-mrb_zarmour_destroy(mrb_state *mrb, void *p)
-{
-  zarmour_destroy((zarmour_t **) &p);
-}
-
-static const struct mrb_data_type mrb_zarmour_type = {
-  "$i_mrb_zsock_actor_type", mrb_zarmour_destroy
-};
-
-static void
 mrb_zsock_actor_destroy(mrb_state *mrb, void *p)
 {
   if (p) {
