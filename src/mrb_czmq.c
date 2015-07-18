@@ -1176,8 +1176,9 @@ mrb_mruby_czmq_gem_init(mrb_state* mrb) {
     mrb_warn(mrb, "enable #define MRB_INT%S in mrbconf.h for mruby-czmq or else you cannot poll on TCP Sockets\n", mrb_fixnum_value(sizeof(SOCKET) * 8));
 #endif
 
+  errno = 0;
   if (zsys_init() == NULL)
-    mrb_raise(mrb, E_CZMQ_ERROR, zmq_strerror(zmq_errno()));
+    mrb_sys_fail(mrb, "zsys_init");
 }
 
 void
