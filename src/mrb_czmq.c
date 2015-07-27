@@ -970,7 +970,7 @@ mrb_pollitem_new(mrb_state *mrb, mrb_value self)
     }
       break;
     case MRB_TT_FIXNUM:
-      pollitem->fd = mrb_int(mrb, socket_or_fd);
+      pollitem->fd = mrb_fixnum(socket_or_fd);
       break;
     case MRB_TT_FALSE:
       break;
@@ -1040,22 +1040,31 @@ mrb_zmq_poll(mrb_state *mrb, mrb_value self)
 
   int rc = zmq_poll(pollitems, pollitems_len, timeout * ZMQ_POLL_MSEC);
 
-  if (rc == -1)
-    return mrb_symbol_value(mrb_intern_lit(mrb, "terminated"));
-  else
-  if (rc == 0)
-    return mrb_symbol_value(mrb_intern_lit(mrb, "expired"));
-  else {
-    mrb_value signaled_items = mrb_ary_new_capa(mrb, rc);
-
-    for(mrb_int i = 0; i < pollitems_len; i++) {
-      if (pollitems[i].revents) {
-        ((zmq_pollitem_t *) DATA_PTR(pollitems_obj[i]))->revents = pollitems[i].revents;
-        mrb_ary_push(mrb, signaled_items, pollitems_obj[i]);
+  switch(rc) {
+    case -1:
+      return mrb_false_value();
+    case 0:
+      return mrb_nil_value();
+    case 1: {
+      for(mrb_int i = 0; i < pollitems_len; i++) {
+        if (pollitems[i].revents) {
+          ((zmq_pollitem_t *) DATA_PTR(pollitems_obj[i]))->revents = pollitems[i].revents;
+          return pollitems_obj[i];
+        }
       }
     }
+    default: {
+      mrb_value signaled_items = mrb_ary_new_capa(mrb, rc);
 
-    return signaled_items;
+      for(mrb_int i = 0; i < pollitems_len; i++) {
+        if (pollitems[i].revents) {
+          ((zmq_pollitem_t *) DATA_PTR(pollitems_obj[i]))->revents = pollitems[i].revents;
+          mrb_ary_push(mrb, signaled_items, pollitems_obj[i]);
+        }
+      }
+
+      return signaled_items;
+    }
   }
 }
 

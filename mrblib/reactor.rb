@@ -126,11 +126,11 @@ module CZMQ
     end
 
     def run
-      until (pollitems = @poller.wait(tickless)) == :terminated||@interrupted
+      until (pollitems = @poller.wait(tickless)) == false||@interrupted
         if @pollers.empty? && @timers.empty? && @tickets.empty?
           return false
         end
-        if pollitems.respond_to? :each
+        if pollitems
           pollitems.each {|pollitem| @pollers[pollitem].call(pollitem)}
         end
         now = Zclock.mono
@@ -145,10 +145,10 @@ module CZMQ
         return false
       end
       pollitems = @poller.wait(tickless)
-      if pollitems == :terminated
-        return pollitems
-      elsif pollitems.respond_to? :each
+      if pollitems
         pollitems.each {|pollitem| @pollers[pollitem].call(pollitem)}
+      else
+        return pollitems
       end
       now = Zclock.mono
       @timers.select {|timer| now >= timer.when}.each {|timer| timer.call}
@@ -161,10 +161,10 @@ module CZMQ
         return false
       end
       pollitems = @poller.wait(0)
-      if pollitems == :terminated
-        return pollitems
-      elsif pollitems.respond_to? :each
+      if pollitems
         pollitems.each {|pollitem| @pollers[pollitem].call(pollitem)}
+      else
+        return pollitems
       end
       now = Zclock.mono
       @timers.select {|timer| now >= timer.when}.each {|timer| timer.call}
