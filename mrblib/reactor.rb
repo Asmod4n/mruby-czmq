@@ -147,7 +147,7 @@ module CZMQ
       pollitems = @poller.wait(tickless)
       if pollitems
         pollitems.each {|pollitem| @pollers[pollitem].call(pollitem)}
-      else
+      elsif pollitems == false
         return pollitems
       end
       now = Zclock.mono
@@ -163,7 +163,7 @@ module CZMQ
       pollitems = @poller.wait(0)
       if pollitems
         pollitems.each {|pollitem| @pollers[pollitem].call(pollitem)}
-      else
+      elsif pollitems == false
         return pollitems
       end
       now = Zclock.mono
