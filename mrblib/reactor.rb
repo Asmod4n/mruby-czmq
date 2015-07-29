@@ -126,11 +126,11 @@ module CZMQ
     end
 
     def run
-      until (pollitems = @poller.wait(tickless)) == false||@interrupted
+      until Zsys.interrupted?||@interrupted
         if @pollers.empty? && @timers.empty? && @tickets.empty?
           return false
         end
-        if pollitems
+        if (pollitems = @poller.wait(tickless))
           pollitems.each {|pollitem| @pollers[pollitem].call(pollitem)}
         end
         now = Zclock.mono
@@ -144,11 +144,8 @@ module CZMQ
       if @pollers.empty? && @timers.empty? && @tickets.empty?
         return false
       end
-      pollitems = @poller.wait(tickless)
-      if pollitems
+      if (pollitems = @poller.wait(tickless))
         pollitems.each {|pollitem| @pollers[pollitem].call(pollitem)}
-      elsif pollitems == false
-        return pollitems
       end
       now = Zclock.mono
       @timers.select {|timer| now >= timer.when}.each {|timer| timer.call}
@@ -160,11 +157,8 @@ module CZMQ
       if @pollers.empty? && @timers.empty? && @tickets.empty?
         return false
       end
-      pollitems = @poller.wait(0)
-      if pollitems
+      if (pollitems = @poller.wait(0))
         pollitems.each {|pollitem| @pollers[pollitem].call(pollitem)}
-      elsif pollitems == false
-        return pollitems
       end
       now = Zclock.mono
       @timers.select {|timer| now >= timer.when}.each {|timer| timer.call}
@@ -172,8 +166,7 @@ module CZMQ
       self
     end
 
-    # private
-
+    private
     def tickless
       wann = Zclock.mono + 1000
       unless @timers.empty?
