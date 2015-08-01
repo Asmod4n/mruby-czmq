@@ -359,7 +359,7 @@ mrb_zsock_signal(mrb_state *mrb, mrb_value self)
 
   errno = 0;
 
-  if (zsock_signal((zsock_t *) DATA_PTR(self), (byte) status) == -1) {
+  if (zsock_signal(DATA_PTR(self), (byte) status) == -1) {
     if (errno == ENOMEM) {
       mrb->out_of_memory = TRUE;
       mrb_exc_raise(mrb, mrb_obj_value(mrb->nomem_err));
@@ -374,7 +374,7 @@ mrb_zsock_signal(mrb_state *mrb, mrb_value self)
 static mrb_value
 mrb_zsock_wait(mrb_state *mrb, mrb_value self)
 {
-  return mrb_fixnum_value(zsock_wait((zsock_t *) DATA_PTR(self)));
+  return mrb_fixnum_value(zsock_wait(DATA_PTR(self)));
 }
 
 static mrb_value
@@ -606,12 +606,14 @@ mrb_zsock_recvx(mrb_state *mrb, mrb_value self)
 
   msg = zmsg_recv(DATA_PTR(self));
   if (msg) {
+    int ai = mrb_gc_arena_save(mrb);
     msgs = mrb_ary_new_capa(mrb, zmsg_size(msg));
     zframe = zmsg_pop(msg);
     while (zframe) {
       mrb_ary_push(mrb, msgs, mrb_obj_value(mrb_data_object_alloc(mrb,
         mrb_class_get_under(mrb, mrb_module_get(mrb, "CZMQ"), "Zframe"),
         zframe, &mrb_zframe_type)));
+      mrb_gc_arena_restore(mrb, ai);
       zframe = zmsg_pop(msg);
     }
     zmsg_destroy(&msg);
@@ -846,12 +848,14 @@ mrb_zconfig_comments(mrb_state *mrb, mrb_value self)
 
   comments = zconfig_comments((zconfig_t *) DATA_PTR(self));
   if (comments) {
+    int ai = mrb_gc_arena_save(mrb);
     comments_obj = mrb_ary_new_capa(mrb, zlist_size(comments));
 
     s = (const char *) zlist_first(comments);
     while (s) {
       mrb_ary_push(mrb, comments_obj, mrb_str_new_cstr(mrb, s));
       s = (const char *) zlist_next(comments);
+      mrb_gc_arena_restore(mrb, ai);
     }
 
     return comments_obj;
@@ -1074,7 +1078,7 @@ mrb_zmq_poll(mrb_state *mrb, mrb_value self)
 
 void
 mrb_mruby_czmq_gem_init(mrb_state* mrb) {
-  struct RClass *zmq_mod, *czmq_mod, *zclock_mod, *zsys_mod, *zsock_class,
+  struct RClass *zmq_mod, *zmq_version_mod, *czmq_mod, *czmq_version_mod, *zclock_mod, *zsys_mod, *zsock_actor_class, *zsock_class,
   *zframe_class, *zactor_class, *zconfig_class, *pollitem_class;
 
   zmq_mod = mrb_define_module(mrb, "ZMQ");
@@ -1096,11 +1100,19 @@ mrb_mruby_czmq_gem_init(mrb_state* mrb) {
 #if defined(ZMQ_POLLPRI)
   mrb_define_const(mrb, zmq_mod, "POLLPRI", mrb_fixnum_value(ZMQ_POLLPRI));
 #endif
+  zmq_version_mod = mrb_define_module_under(mrb, zmq_mod, "VERSION");
+  mrb_define_const(mrb, zmq_version_mod, "MAJOR", mrb_fixnum_value(ZMQ_VERSION_MAJOR));
+  mrb_define_const(mrb, zmq_version_mod, "MINOR", mrb_fixnum_value(ZMQ_VERSION_MINOR));
+  mrb_define_const(mrb, zmq_version_mod, "PATCH", mrb_fixnum_value(ZMQ_VERSION_PATCH));
 
-  mrb_define_module_function(mrb, zmq_mod, "poll", mrb_zmq_poll, MRB_ARGS_REQ(2));
+  mrb_define_module_function(mrb, zmq_mod, "poll",    mrb_zmq_poll,     MRB_ARGS_REQ(2));
 
   czmq_mod = mrb_define_module(mrb, "CZMQ");
   mrb_define_class_under(mrb, czmq_mod, "Error", E_RUNTIME_ERROR);
+  czmq_version_mod = mrb_define_module_under(mrb, czmq_mod, "VERSION");
+  mrb_define_const(mrb, czmq_version_mod, "MAJOR", mrb_fixnum_value(CZMQ_VERSION_MAJOR));
+  mrb_define_const(mrb, czmq_version_mod, "MINOR", mrb_fixnum_value(CZMQ_VERSION_MINOR));
+  mrb_define_const(mrb, czmq_version_mod, "PATCH", mrb_fixnum_value(CZMQ_VERSION_PATCH));
 
   zclock_mod = mrb_define_module_under(mrb, czmq_mod, "Zclock");
   mrb_define_module_function(mrb, zclock_mod, "sleep",    mrb_zclock_sleep,   MRB_ARGS_REQ(1));
@@ -1121,8 +1133,14 @@ mrb_mruby_czmq_gem_init(mrb_state* mrb) {
   mrb_define_module_function(mrb, zsys_mod, "create_pipe",  mrb_zsys_create_pipe,     MRB_ARGS_NONE());
   mrb_define_module_function(mrb, zsys_mod, "hostname",     mrb_zsys_hostname,        MRB_ARGS_NONE());
 
-  zsock_class = mrb_define_class_under(mrb, czmq_mod, "Zsock", mrb->object_class);
-  MRB_SET_INSTANCE_TT(zsock_class, MRB_TT_DATA);
+  zsock_actor_class = mrb_define_class_under(mrb, czmq_mod, "ZsockActor", mrb->object_class);
+  MRB_SET_INSTANCE_TT(zsock_actor_class, MRB_TT_DATA);
+  mrb_define_method(mrb, zsock_actor_class, "signal", mrb_zsock_signal, MRB_ARGS_OPT(1));
+  mrb_define_method(mrb, zsock_actor_class, "wait",   mrb_zsock_wait,   MRB_ARGS_NONE());
+  mrb_define_method(mrb, zsock_actor_class, "sendx",  mrb_zsock_sendx,  MRB_ARGS_ANY());
+  mrb_define_method(mrb, zsock_actor_class, "recvx",  mrb_zsock_recvx,  MRB_ARGS_NONE());
+
+  zsock_class = mrb_define_class_under(mrb, czmq_mod, "Zsock", zsock_actor_class);
   mrb_define_method(mrb, zsock_class, "initialize", mrb_zsock_new,          MRB_ARGS_REQ(1));
   mrb_define_method(mrb, zsock_class, "bind",       mrb_zsock_bind,         MRB_ARGS_REQ(1));
   mrb_define_method(mrb, zsock_class, "unbind",     mrb_zsock_unbind,       MRB_ARGS_REQ(1));
@@ -1130,13 +1148,10 @@ mrb_mruby_czmq_gem_init(mrb_state* mrb) {
   mrb_define_method(mrb, zsock_class, "disconnect", mrb_zsock_disconnect,   MRB_ARGS_REQ(1));
   mrb_define_method(mrb, zsock_class, "attach",     mrb_zsock_attach,       MRB_ARGS_ARG(1, 1));
   mrb_define_method(mrb, zsock_class, "type_str",   mrb_zsock_type_str,     MRB_ARGS_NONE());
-  mrb_define_method(mrb, zsock_class, "signal",     mrb_zsock_signal,       MRB_ARGS_OPT(1));
-  mrb_define_method(mrb, zsock_class, "wait",       mrb_zsock_wait,         MRB_ARGS_NONE());
   mrb_define_method(mrb, zsock_class, "endpoint",   mrb_zsock_endpoint,     MRB_ARGS_NONE());
   mrb_define_method(mrb, zsock_class, "identity=",  mrb_zsock_set_identity, MRB_ARGS_REQ(1));
   mrb_define_method(mrb, zsock_class, "identity",   mrb_zsock_identity,     MRB_ARGS_NONE());
-  mrb_define_method(mrb, zsock_class, "sendx",      mrb_zsock_sendx,        MRB_ARGS_ANY());
-  mrb_define_method(mrb, zsock_class, "recvx",      mrb_zsock_recvx,        MRB_ARGS_NONE());
+
 
   zframe_class = mrb_define_class_under(mrb, czmq_mod, "Zframe", mrb->object_class);
   MRB_SET_INSTANCE_TT(zframe_class, MRB_TT_DATA);
@@ -1152,7 +1167,7 @@ mrb_mruby_czmq_gem_init(mrb_state* mrb) {
   mrb_define_method(mrb, zframe_class, "send" ,         mrb_zframe_send,    MRB_ARGS_ARG(1, 1));
   mrb_define_method(mrb, zframe_class, "more?" ,        mrb_zframe_more,    MRB_ARGS_NONE());
 
-  zactor_class = mrb_define_class_under(mrb, czmq_mod, "Zactor", zsock_class);
+  zactor_class = mrb_define_class_under(mrb, czmq_mod, "Zactor", zsock_actor_class);
   mrb_define_class_method(mrb, zactor_class, "new_zauth",     mrb_zactor_new_zauth,     MRB_ARGS_NONE());
   mrb_define_class_method(mrb, zactor_class, "new_zbeacon",   mrb_zactor_new_zbeacon,   MRB_ARGS_NONE());
   mrb_define_class_method(mrb, zactor_class, "new_zgossip",   mrb_zactor_new_zgossip,   MRB_ARGS_OPT(1));
