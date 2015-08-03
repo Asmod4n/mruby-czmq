@@ -131,7 +131,11 @@ module CZMQ
           return false
         end
         if (pollitems = @poller.wait(tickless))
+        if pollitems.respond_to?(:each)
           pollitems.each {|pollitem| @pollers[pollitem].call(pollitem)}
+        else
+          @pollers[pollitems].call(pollitems)
+        end
         end
         now = Zclock.mono
         @timers.select {|timer| now >= timer.when}.each {|timer| timer.call}
@@ -145,7 +149,11 @@ module CZMQ
         return false
       end
       if (pollitems = @poller.wait(tickless))
-        pollitems.each {|pollitem| @pollers[pollitem].call(pollitem)}
+        if pollitems.respond_to?(:each)
+          pollitems.each {|pollitem| @pollers[pollitem].call(pollitem)}
+        else
+          @pollers[pollitems].call(pollitems)
+        end
       end
       now = Zclock.mono
       @timers.select {|timer| now >= timer.when}.each {|timer| timer.call}
@@ -158,7 +166,11 @@ module CZMQ
         return false
       end
       if (pollitems = @poller.wait(0))
-        pollitems.each {|pollitem| @pollers[pollitem].call(pollitem)}
+        if pollitems.respond_to?(:each)
+          pollitems.each {|pollitem| @pollers[pollitem].call(pollitem)}
+        else
+          @pollers[pollitems].call(pollitems)
+        end
       end
       now = Zclock.mono
       @timers.select {|timer| now >= timer.when}.each {|timer| timer.call}
