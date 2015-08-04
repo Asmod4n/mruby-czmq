@@ -413,6 +413,31 @@ mrb_zsock_identity(mrb_state *mrb, mrb_value self)
 }
 
 static mrb_value
+mrb_zsock_set_subscribe(mrb_state *mrb, mrb_value self)
+{
+  char *subscribe;
+
+  mrb_get_args(mrb, "z", &subscribe);
+
+  zsock_set_subscribe((zsock_t *) DATA_PTR(self), subscribe);
+
+  return self;
+}
+
+static mrb_value
+mrb_zsock_set_unsubscribe(mrb_state *mrb, mrb_value self)
+{
+  char *unsubscribe;
+
+  mrb_get_args(mrb, "z", &unsubscribe);
+
+  zsock_set_unsubscribe((zsock_t *) DATA_PTR(self), unsubscribe);
+
+  return self;
+}
+
+
+static mrb_value
 mrb_zsock_sendx(mrb_state *mrb, mrb_value self)
 {
   mrb_value *argv;
@@ -1051,6 +1076,7 @@ mrb_zmq_poll(mrb_state *mrb, mrb_value self)
     break;
     case 0:
       return mrb_nil_value();
+    break;
     case 1: {
       for(mrb_int i = 0; i < pollitems_len; i++) {
         if (pollitems[i].revents) {
@@ -1059,6 +1085,7 @@ mrb_zmq_poll(mrb_state *mrb, mrb_value self)
         }
       }
     }
+    break;
     default: {
       mrb_value signaled_items = mrb_ary_new_capa(mrb, rc);
 
@@ -1141,17 +1168,18 @@ mrb_mruby_czmq_gem_init(mrb_state* mrb) {
   mrb_define_method(mrb, zsock_actor_class, "recvx",  mrb_zsock_recvx,  MRB_ARGS_NONE());
 
   zsock_class = mrb_define_class_under(mrb, czmq_mod, "Zsock", zsock_actor_class);
-  mrb_define_method(mrb, zsock_class, "initialize", mrb_zsock_new,          MRB_ARGS_REQ(1));
-  mrb_define_method(mrb, zsock_class, "bind",       mrb_zsock_bind,         MRB_ARGS_REQ(1));
-  mrb_define_method(mrb, zsock_class, "unbind",     mrb_zsock_unbind,       MRB_ARGS_REQ(1));
-  mrb_define_method(mrb, zsock_class, "connect",    mrb_zsock_connect,      MRB_ARGS_REQ(1));
-  mrb_define_method(mrb, zsock_class, "disconnect", mrb_zsock_disconnect,   MRB_ARGS_REQ(1));
-  mrb_define_method(mrb, zsock_class, "attach",     mrb_zsock_attach,       MRB_ARGS_ARG(1, 1));
-  mrb_define_method(mrb, zsock_class, "type_str",   mrb_zsock_type_str,     MRB_ARGS_NONE());
-  mrb_define_method(mrb, zsock_class, "endpoint",   mrb_zsock_endpoint,     MRB_ARGS_NONE());
-  mrb_define_method(mrb, zsock_class, "identity=",  mrb_zsock_set_identity, MRB_ARGS_REQ(1));
-  mrb_define_method(mrb, zsock_class, "identity",   mrb_zsock_identity,     MRB_ARGS_NONE());
-
+  mrb_define_method(mrb, zsock_class, "initialize",   mrb_zsock_new,              MRB_ARGS_REQ(1));
+  mrb_define_method(mrb, zsock_class, "bind",         mrb_zsock_bind,             MRB_ARGS_REQ(1));
+  mrb_define_method(mrb, zsock_class, "unbind",       mrb_zsock_unbind,           MRB_ARGS_REQ(1));
+  mrb_define_method(mrb, zsock_class, "connect",      mrb_zsock_connect,          MRB_ARGS_REQ(1));
+  mrb_define_method(mrb, zsock_class, "disconnect",   mrb_zsock_disconnect,       MRB_ARGS_REQ(1));
+  mrb_define_method(mrb, zsock_class, "attach",       mrb_zsock_attach,           MRB_ARGS_ARG(1, 1));
+  mrb_define_method(mrb, zsock_class, "type_str",     mrb_zsock_type_str,         MRB_ARGS_NONE());
+  mrb_define_method(mrb, zsock_class, "endpoint",     mrb_zsock_endpoint,         MRB_ARGS_NONE());
+  mrb_define_method(mrb, zsock_class, "identity=",    mrb_zsock_set_identity,     MRB_ARGS_REQ(1));
+  mrb_define_method(mrb, zsock_class, "identity",     mrb_zsock_identity,         MRB_ARGS_NONE());
+  mrb_define_method(mrb, zsock_class, "subscribe=",   mrb_zsock_set_subscribe,    MRB_ARGS_REQ(1));
+  mrb_define_method(mrb, zsock_class, "unsubscribe=", mrb_zsock_set_unsubscribe,  MRB_ARGS_REQ(1));
 
   zframe_class = mrb_define_class_under(mrb, czmq_mod, "Zframe", mrb->object_class);
   MRB_SET_INSTANCE_TT(zframe_class, MRB_TT_DATA);
