@@ -597,9 +597,10 @@ mrb_zframe_send(mrb_state *mrb, mrb_value self)
     mrb_raise(mrb, E_RANGE_ERROR, "flags are out of range");
 
   errno = 0;
+  size_t _size = zframe_size((zframe_t *) DATA_PTR(self));
 
   if (zframe_send((zframe_t **) &DATA_PTR(self), zsock_actor, (int) flags) == 0)
-    return mrb_true_value();
+    return mrb_fixnum_value(_size);
   else
   if (errno == ENOMEM) {
     mrb->out_of_memory = TRUE;
