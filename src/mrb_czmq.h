@@ -1,7 +1,11 @@
 ﻿#ifndef MRB_CZMQ_H
 #define MRB_CZMQ_H
 
-#include <errno.h>
+#include <mruby.h>
+#include <mruby/throw.h>
+#include <mruby/compile.h>
+#include <mruby/string.h>
+#include <mruby/value.h>
 #include <czmq.h>
 #include <mruby/data.h>
 #include <mruby/class.h>

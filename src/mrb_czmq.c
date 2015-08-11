@@ -468,7 +468,7 @@ mrb_zsock_sendx(mrb_state *mrb, mrb_value self)
           mrb_sys_fail(mrb, "zsock_sendx");
       }
     }
-    if (zmsg_send(&msg, (zsock_t *) DATA_PTR(self)) == -1) {
+    if (zmsg_send(&msg, DATA_PTR(self)) == -1) {
       zmsg_destroy(&msg);
       if (errno == ENOMEM) {
         mrb->out_of_memory = TRUE;
@@ -1105,6 +1105,159 @@ mrb_zmq_poll(mrb_state *mrb, mrb_value self)
 }
 
 void
+mrb_zactor_fn(zsock_t *pipe, void *args)
+{
+  const char *mrb_file = (const char *) args;
+  assert(strlen(mrb_file));
+  mrb_state *mrb = mrb_open();
+  assert (mrb);
+
+  FILE *handle = fopen(mrb_file, "r");
+
+  struct mrb_jmpbuf *prev_jmp = mrb->jmp;
+  struct mrb_jmpbuf c_jmp;
+
+  mrb_value global_state, msgpack_mod;
+  mrb_sym global_state_sym, mruby_actor_count;
+
+  MRB_TRY(&c_jmp) {
+    mrb_load_file(mrb, handle);
+    global_state = mrb_hash_new(mrb);
+    global_state_sym = mrb_intern_lit(mrb, "mruby_actor_global_state");
+    mruby_actor_count = mrb_intern_lit(mrb, "count");
+    mrb_gv_set(mrb, global_state_sym, global_state);
+    struct RClass *msgpack_mod_rc = mrb_module_get(mrb, "MessagePack");
+    msgpack_mod = mrb_obj_value(msgpack_mod_rc);
+    zsock_signal(pipe, 0);
+    mrb->jmp = prev_jmp;
+  } MRB_CATCH(&c_jmp) {
+    mrb->jmp = prev_jmp;
+    mrb_p(mrb, mrb_obj_value(mrb->exc));
+    mrb_close(mrb);
+    zsock_signal(pipe, 1);
+    return;
+  } MRB_END_EXC(&c_jmp);
+
+  bool terminated = false;
+  while(!terminated) {
+    int ai = mrb_gc_arena_save(mrb);
+    zmsg_t *msg = zmsg_recv(pipe);
+    if (!msg)
+      break;    // Interrupted
+
+    char *command = zmsg_popstr (msg);
+    printf("command: %s\n", command);
+    if (streq(command, "$TERM"))
+      terminated = true;
+    else
+    if (streq(command, "initialize")) {
+      struct mrb_jmpbuf *prev_jmp = mrb->jmp;
+      struct mrb_jmpbuf c_jmp;
+      char *class = zmsg_popstr(msg);
+      assert(class);
+      zframe_t *args = zmsg_pop(msg);
+      MRB_TRY(&c_jmp) {
+        struct RClass *mrb_class = mrb_class_get(mrb, class);
+        mrb_value obj;
+        if (args) {
+          mrb_value argv_str = mrb_str_new(mrb, zframe_data(args), zframe_size(args));
+          mrb_value argv = mrb_funcall(mrb, msgpack_mod, "unpack", 1, argv_str);
+          obj = mrb_obj_new(mrb, mrb_class, 1, &argv);
+        } else {
+          obj = mrb_obj_new(mrb, mrb_class, 0, NULL);
+        }
+        mrb_value object_id = mrb_fixnum_value(mrb_obj_id(obj));
+        mrb_value actor_address = mrb_funcall(mrb, object_id, "to_s", 0, NULL);
+        mrb_hash_set(mrb, global_state, actor_address, obj);
+        const char *actor_address_cstr = mrb_string_value_cstr(mrb, &actor_address);
+        zsock_send(pipe, "s", actor_address_cstr);
+        mrb->jmp = prev_jmp;
+      } MRB_CATCH(&c_jmp) {
+        mrb->jmp = prev_jmp;
+        mrb_p(mrb, mrb_obj_value(mrb->exc));
+        terminated = true;
+        zsock_signal(pipe, 1);
+      } MRB_END_EXC(&c_jmp);
+      zstr_free(&class);
+      zframe_destroy(&args);
+    }
+    else
+    if (streq(command, "send")) {
+      zframe_t *object_id_frame = zmsg_pop(msg);
+      assert (object_id_frame);
+      char *func = zmsg_popstr(msg);
+      assert (strlen(func));
+      zframe_t *args = zmsg_pop(msg);
+      struct mrb_jmpbuf *prev_jmp = mrb->jmp;
+      struct mrb_jmpbuf c_jmp;
+      MRB_TRY(&c_jmp) {
+        mrb_value ret;
+        mrb_value actor_address = mrb_str_new_static(mrb, zframe_data(object_id_frame), zframe_size(object_id_frame));
+        mrb_value object_id = mrb_hash_get(mrb, global_state, actor_address);
+        if (args) {
+          mrb_value argv_str = mrb_str_new_static(mrb, zframe_data(args), zframe_size(args));
+          mrb_value argv = mrb_funcall(mrb, msgpack_mod, "unpack", 1, argv_str);
+          mrb_value rets = mrb_funcall(mrb, object_id, func, 1, argv);
+          ret = mrb_funcall(mrb, rets, "to_msgpack", 0, NULL);
+        } else {
+          mrb_value rets = mrb_funcall(mrb, object_id, func, 0, NULL);
+          ret = mrb_funcall(mrb, rets, "to_msgpack", 0, NULL);
+        }
+        if (mrb->exc) {
+          zframe_destroy(&args);
+          zstr_free(&func);
+          zframe_destroy(&object_id_frame);
+          terminated = true;
+          mrb_p(mrb, mrb_obj_value(mrb->exc));
+          zsock_signal(pipe, 1);
+          break;
+        }
+        zframe_t *result = zframe_new(RSTRING_PTR(ret), RSTRING_LEN(ret));
+        zframe_send(&result, pipe, 0);
+        mrb->jmp = prev_jmp;
+      } MRB_CATCH(&c_jmp) {
+        mrb->jmp = prev_jmp;
+        mrb_p(mrb, mrb_obj_value(mrb->exc));
+        terminated = true;
+        zsock_signal(pipe, 1);
+      } MRB_END_EXC(&c_jmp);
+      zframe_destroy(&args);
+      zstr_free(&func);
+      zframe_destroy(&object_id_frame);
+    }
+
+    mrb_gc_arena_restore(mrb, ai);
+    zstr_free(&command);
+    zmsg_destroy(&msg);
+  }
+
+  mrb_gv_remove(mrb, global_state_sym);
+  mrb_close(mrb);
+  zsock_signal(pipe, 0);
+}
+
+static mrb_value
+mrb_actor_new(mrb_state *mrb, mrb_value self)
+{
+  char *mrb_file;
+
+  mrb_get_args(mrb, "z", &mrb_file);
+
+  zactor_t *zactor = zactor_new(mrb_zactor_fn, mrb_file);
+  if (zactor)
+    mrb_data_init(self, zactor, &mrb_zsock_actor_type);
+  else
+  if (errno == ENOMEM) {
+    mrb->out_of_memory = TRUE;
+    mrb_exc_raise(mrb, mrb_obj_value(mrb->nomem_err));
+  }
+  else
+    mrb_sys_fail(mrb, "zactor_new_mrb_zactor_fn");
+
+  return self;
+}
+
+void
 mrb_mruby_czmq_gem_init(mrb_state* mrb) {
   struct RClass *zmq_mod, *zmq_version_mod, *czmq_mod, *czmq_version_mod, *zclock_mod, *zsys_mod, *zsock_actor_class, *zsock_class,
   *zframe_class, *zactor_class, *zconfig_class, *pollitem_class;
@@ -1197,6 +1350,7 @@ mrb_mruby_czmq_gem_init(mrb_state* mrb) {
   mrb_define_method(mrb, zframe_class, "more?" ,        mrb_zframe_more,    MRB_ARGS_NONE());
 
   zactor_class = mrb_define_class_under(mrb, czmq_mod, "Zactor", zsock_actor_class);
+  mrb_define_method(mrb,       zactor_class, "initialize",    mrb_actor_new,            MRB_ARGS_REQ(1));
   mrb_define_class_method(mrb, zactor_class, "new_zauth",     mrb_zactor_new_zauth,     MRB_ARGS_NONE());
   mrb_define_class_method(mrb, zactor_class, "new_zbeacon",   mrb_zactor_new_zbeacon,   MRB_ARGS_NONE());
   mrb_define_class_method(mrb, zactor_class, "new_zgossip",   mrb_zactor_new_zgossip,   MRB_ARGS_OPT(1));
