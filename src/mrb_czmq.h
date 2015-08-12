@@ -14,6 +14,7 @@
 #include <mruby/array.h>
 #include <mruby/string.h>
 #include <mruby/error.h>
+#include <errno.h>
 
 static void
 mrb_zsock_actor_destroy(mrb_state *mrb, void *p)

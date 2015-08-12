@@ -1104,7 +1104,7 @@ mrb_zmq_poll(mrb_state *mrb, mrb_value self)
   return self;
 }
 
-void
+static void
 mrb_zactor_fn(zsock_t *pipe, void *args)
 {
   const char *mrb_file = (const char *) args;
@@ -1113,6 +1113,7 @@ mrb_zactor_fn(zsock_t *pipe, void *args)
   assert (mrb);
 
   FILE *handle = fopen(mrb_file, "r");
+  assert(handle);
 
   struct mrb_jmpbuf *prev_jmp = mrb->jmp;
   struct mrb_jmpbuf c_jmp;
@@ -1134,6 +1135,7 @@ mrb_zactor_fn(zsock_t *pipe, void *args)
     mrb->jmp = prev_jmp;
     mrb_p(mrb, mrb_obj_value(mrb->exc));
     mrb_close(mrb);
+    fclose(handle);
     zsock_signal(pipe, 1);
     return;
   } MRB_END_EXC(&c_jmp);
@@ -1233,6 +1235,7 @@ mrb_zactor_fn(zsock_t *pipe, void *args)
 
   mrb_gv_remove(mrb, global_state_sym);
   mrb_close(mrb);
+  fclose(handle);
   zsock_signal(pipe, 0);
 }
 
@@ -1275,6 +1278,12 @@ mrb_mruby_czmq_gem_init(mrb_state* mrb) {
   mrb_define_const(mrb, zmq_mod, "XPUB",    mrb_fixnum_value(ZMQ_XPUB));
   mrb_define_const(mrb, zmq_mod, "XSUB",    mrb_fixnum_value(ZMQ_XSUB));
   mrb_define_const(mrb, zmq_mod, "STREAM",  mrb_fixnum_value(ZMQ_STREAM));
+#if defined(ZMQ_SERVER)
+  mrb_define_const(mrb, zmq_mod, "SERVER",  mrb_fixnum_value(ZMQ_SERVER));
+#endif
+#if defined(ZMQ_CLIENT)
+  mrb_define_const(mrb, zmq_mod, "CLIENT",  mrb_fixnum_value(ZMQ_CLIENT));
+#endif
   mrb_define_const(mrb, zmq_mod, "POLLIN",  mrb_fixnum_value(ZMQ_POLLIN));
   mrb_define_const(mrb, zmq_mod, "POLLOUT", mrb_fixnum_value(ZMQ_POLLOUT));
   mrb_define_const(mrb, zmq_mod, "POLLERR", mrb_fixnum_value(ZMQ_POLLERR));
