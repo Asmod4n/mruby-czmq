@@ -1242,11 +1242,15 @@ mrb_zactor_fn(zsock_t *pipe, void *args)
 static mrb_value
 mrb_actor_new(mrb_state *mrb, mrb_value self)
 {
-  char *mrb_file;
+  mrb_value mrb_actor_obj, mrb_actor_args_obj;
+  char *mrb_actor_args = NULL;
 
-  mrb_get_args(mrb, "z", &mrb_file);
+  mrb_get_args(mrb, "o|z!", &mrb_actor_obj, &mrb_actor_args);
 
-  zactor_t *zactor = zactor_new(mrb_zactor_fn, mrb_file);
+  if(!mrb_cptr_p(mrb_actor_obj))
+    mrb_raise(mrb, E_ARGUMENT_ERROR, "not a c pointer");
+
+  zactor_t *zactor = zactor_new(mrb_cptr(mrb_actor_obj), mrb_actor_args);
   if (zactor)
     mrb_data_init(self, zactor, &mrb_zsock_actor_type);
   else
