@@ -1104,7 +1104,7 @@ mrb_zmq_poll(mrb_state *mrb, mrb_value self)
 static mrb_value
 mrb_actor_new(mrb_state *mrb, mrb_value self)
 {
-  mrb_value mrb_actor_obj, mrb_actor_args_obj;
+  mrb_value mrb_actor_obj;
   char *mrb_actor_args = NULL;
 
   mrb_get_args(mrb, "o|z!", &mrb_actor_obj, &mrb_actor_args);
@@ -1165,6 +1165,7 @@ mrb_mruby_czmq_gem_init(mrb_state* mrb) {
 
   czmq_mod = mrb_define_module(mrb, "CZMQ");
   mrb_define_class_under(mrb, czmq_mod, "Error", E_RUNTIME_ERROR);
+  mrb_define_const(mrb, czmq_mod, "ZUUID_LEN", mrb_fixnum_value(ZUUID_LEN));
   czmq_version_mod = mrb_define_module_under(mrb, czmq_mod, "VERSION");
   mrb_define_const(mrb, czmq_version_mod, "MAJOR", mrb_fixnum_value(CZMQ_VERSION_MAJOR));
   mrb_define_const(mrb, czmq_version_mod, "MINOR", mrb_fixnum_value(CZMQ_VERSION_MINOR));

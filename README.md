@@ -15,11 +15,11 @@ client = CZMQ::Zsock.new ZMQ::DEALER
 client.identity = "client"
 client.connect "inproc://#{server.object_id}"
 
-client.sendx "", "hello world"
+client.sendx "hello world"
 
 reactor = CZMQ::Reactor.new
 reactor.timer(500, 5) do |timer|
-  server.sendx(client.identity, '', 'test')
+  server.sendx(client.identity, 'test')
 end
 
 server_pi = reactor.poller(server) do |server_pi|
