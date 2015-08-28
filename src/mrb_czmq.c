@@ -57,11 +57,6 @@ mrb_zclock_timestr(mrb_state *mrb, mrb_value self)
     return time_obj;
   }
   else
-  if (errno == ENOMEM) {
-    mrb->out_of_memory = TRUE;
-    mrb_exc_raise(mrb, mrb_obj_value(mrb->nomem_err));
-  }
-  else
     mrb_sys_fail(mrb, "zclock_timestr");
 
   return self;
@@ -175,11 +170,6 @@ mrb_zsys_create_pipe(mrb_state *mrb, mrb_value self)
             backend, &mrb_zsock_actor_type)));
   }
   else
-  if (errno == ENOMEM) {
-    mrb->out_of_memory = TRUE;
-    mrb_exc_raise(mrb, mrb_obj_value(mrb->nomem_err));
-  }
-  else
     mrb_sys_fail(mrb, "zsys_create_pipe");
 
   return self;
@@ -215,11 +205,6 @@ mrb_zsock_new(mrb_state *mrb, mrb_value self)
   if (zsock)
     mrb_data_init(self, zsock, &mrb_zsock_actor_type);
   else
-  if (errno == ENOMEM) {
-    mrb->out_of_memory = TRUE;
-    mrb_exc_raise(mrb, mrb_obj_value(mrb->nomem_err));
-  }
-  else
     mrb_sys_fail(mrb, "zsock_new");
 
   return self;
@@ -243,11 +228,6 @@ mrb_zsock_bind(mrb_state *mrb, mrb_value self)
     else
 #endif
       return mrb_fixnum_value(port);
-  }
-  else
-  if (errno == ENOMEM) {
-    mrb->out_of_memory = TRUE;
-    mrb_exc_raise(mrb, mrb_obj_value(mrb->nomem_err));
   }
   else
     mrb_sys_fail(mrb, "zsock_bind");
@@ -479,11 +459,6 @@ mrb_zsock_sendx(mrb_state *mrb, mrb_value self)
     }
   }
   else
-  if (errno == ENOMEM) {
-    mrb->out_of_memory = TRUE;
-    mrb_exc_raise(mrb, mrb_obj_value(mrb->nomem_err));
-  }
-  else
     mrb_sys_fail(mrb, "zsock_sendx");
 
   return self;
@@ -504,11 +479,6 @@ mrb_zframe_new(mrb_state *mrb, mrb_value self)
   if (zframe)
     mrb_data_init(self, zframe, &mrb_zframe_type);
   else
-  if (errno == ENOMEM) {
-    mrb->out_of_memory = TRUE;
-    mrb_exc_raise(mrb, mrb_obj_value(mrb->nomem_err));
-  }
-  else
     mrb_sys_fail(mrb, "zframe_new");
 
   return self;
@@ -528,11 +498,6 @@ mrb_zframe_recv(mrb_state *mrb, mrb_value self)
   if (zframe)
     return mrb_obj_value(mrb_data_object_alloc(mrb, mrb_class_ptr(self),
       zframe, &mrb_zframe_type));
-  else
-  if (errno == ENOMEM) {
-    mrb->out_of_memory = TRUE;
-    mrb_exc_raise(mrb, mrb_obj_value(mrb->nomem_err));
-  }
   else
     mrb_sys_fail(mrb, "zframe_recv");
 
@@ -602,11 +567,6 @@ mrb_zframe_send(mrb_state *mrb, mrb_value self)
   if (zframe_send((zframe_t **) &DATA_PTR(self), zsock_actor, (int) flags) == 0)
     return mrb_fixnum_value(_size);
   else
-  if (errno == ENOMEM) {
-    mrb->out_of_memory = TRUE;
-    mrb_exc_raise(mrb, mrb_obj_value(mrb->nomem_err));
-  }
-  else
     mrb_sys_fail(mrb, "zframe_send");
 
   return self;
@@ -647,11 +607,6 @@ mrb_zsock_recvx(mrb_state *mrb, mrb_value self)
     return msgs;
   }
   else
-  if (errno == ENOMEM) {
-    mrb->out_of_memory = TRUE;
-    mrb_exc_raise(mrb, mrb_obj_value(mrb->nomem_err));
-  }
-  else
     mrb_sys_fail(mrb, "zsock_recvx");
 
   return self;
@@ -665,11 +620,6 @@ mrb_zactor_new_zauth(mrb_state *mrb, mrb_value self)
   if (zactor)
     return mrb_obj_value(mrb_data_object_alloc(mrb, mrb_class_ptr(self), zactor, &mrb_zsock_actor_type));
   else
-  if (errno == ENOMEM) {
-    mrb->out_of_memory = TRUE;
-    mrb_exc_raise(mrb, mrb_obj_value(mrb->nomem_err));
-  }
-  else
     mrb_sys_fail(mrb, "zactor_new_zauth");
 
   return self;
@@ -682,11 +632,6 @@ mrb_zactor_new_zbeacon(mrb_state *mrb, mrb_value self)
   zactor_t *zactor = zactor_new(zbeacon, NULL);
   if (zactor)
     return mrb_obj_value(mrb_data_object_alloc(mrb, mrb_class_ptr(self), zactor, &mrb_zsock_actor_type));
-  else
-  if (errno == ENOMEM) {
-    mrb->out_of_memory = TRUE;
-    mrb_exc_raise(mrb, mrb_obj_value(mrb->nomem_err));
-  }
   else
     mrb_sys_fail(mrb, "zactor_new_zbeacon");
 
@@ -707,11 +652,6 @@ mrb_zactor_new_zgossip(mrb_state *mrb, mrb_value self)
   if (zactor)
     return mrb_obj_value(mrb_data_object_alloc(mrb, mrb_class_ptr(self), zactor, &mrb_zsock_actor_type));
   else
-  if (errno == ENOMEM) {
-    mrb->out_of_memory = TRUE;
-    mrb_exc_raise(mrb, mrb_obj_value(mrb->nomem_err));
-  }
-  else
     mrb_sys_fail(mrb, "zactor_new_zgossip");
 
   return self;
@@ -731,11 +671,6 @@ mrb_zactor_new_zmonitor(mrb_state *mrb, mrb_value self)
   if (zactor)
     return mrb_obj_value(mrb_data_object_alloc(mrb, mrb_class_ptr(self), zactor, &mrb_zsock_actor_type));
   else
-  if (errno == ENOMEM) {
-    mrb->out_of_memory = TRUE;
-    mrb_exc_raise(mrb, mrb_obj_value(mrb->nomem_err));
-  }
-  else
     mrb_sys_fail(mrb, "zactor_new_zmonitor");
 
   return self;
@@ -748,11 +683,6 @@ mrb_zactor_new_zproxy(mrb_state *mrb, mrb_value self)
   zactor_t *zactor = zactor_new(zproxy, NULL);
   if (zactor)
     return mrb_obj_value(mrb_data_object_alloc(mrb, mrb_class_ptr(self), zactor, &mrb_zsock_actor_type));
-  else
-  if (errno == ENOMEM) {
-    mrb->out_of_memory = TRUE;
-    mrb_exc_raise(mrb, mrb_obj_value(mrb->nomem_err));
-  }
   else
     mrb_sys_fail(mrb, "zactor_new_zproxy");
 
@@ -772,11 +702,6 @@ mrb_zconfig_new(mrb_state *mrb, mrb_value self)
   config = zconfig_new (name, NULL);
   if (config)
     mrb_data_init(self, config, &mrb_zconfig_type);
-  else
-  if (errno == ENOMEM) {
-    mrb->out_of_memory = TRUE;
-    mrb_exc_raise(mrb, mrb_obj_value(mrb->nomem_err));
-  }
   else
     mrb_sys_fail(mrb, "zconfig_new");
 
@@ -904,11 +829,6 @@ mrb_zconfig_load(mrb_state *mrb, mrb_value self)
   if (zconfig)
     return mrb_obj_value(mrb_data_object_alloc(mrb, mrb_class_ptr(self),
       zconfig, &mrb_zconfig_type));
-  else
-  if (errno == ENOMEM) {
-    mrb->out_of_memory = TRUE;
-    mrb_exc_raise(mrb, mrb_obj_value(mrb->nomem_err));
-  }
   else
     mrb_sys_fail(mrb, "zconfig_load");
 
@@ -1110,16 +1030,11 @@ mrb_actor_new(mrb_state *mrb, mrb_value self)
   mrb_get_args(mrb, "o|z!", &mrb_actor_obj, &mrb_actor_args);
 
   if(!mrb_cptr_p(mrb_actor_obj))
-    mrb_raise(mrb, E_ARGUMENT_ERROR, "not a c pointer");
+    mrb_raise(mrb, E_ARGUMENT_ERROR, "mrb_actor_obj must be a c pointer");
 
   zactor_t *zactor = zactor_new(mrb_cptr(mrb_actor_obj), mrb_actor_args);
   if (zactor)
     mrb_data_init(self, zactor, &mrb_zsock_actor_type);
-  else
-  if (errno == ENOMEM) {
-    mrb->out_of_memory = TRUE;
-    mrb_exc_raise(mrb, mrb_obj_value(mrb->nomem_err));
-  }
   else
     mrb_sys_fail(mrb, "zactor_new_mrb_zactor_fn");
 
