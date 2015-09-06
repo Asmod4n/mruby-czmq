@@ -395,25 +395,49 @@ mrb_zsock_identity(mrb_state *mrb, mrb_value self)
 static mrb_value
 mrb_zsock_set_subscribe(mrb_state *mrb, mrb_value self)
 {
+#ifdef ZMQ_SUBSCRIBE
+  if (zsock_type (DATA_PTR(self)) != ZMQ_SUB) {
+    const char *sockname = zsys_sockname (zsock_type (DATA_PTR(self)));
+    mrb_value sockstr = mrb_str_new_static(mrb, sockname, strlen(sockname));
+    mrb_raisef(mrb, E_CZMQ_ERROR, "ZMQ_SUBSCRIBE is not valid on %S sockets", sockstr);
+  }
   char *subscribe;
+  mrb_int subscribe_len;
 
-  mrb_get_args(mrb, "z", &subscribe);
+  mrb_get_args(mrb, "s", &subscribe, &subscribe_len);
 
-  zsock_set_subscribe((zsock_t *) DATA_PTR(self), subscribe);
+  errno = 0;
+  int rc = zmq_setsockopt (zsock_resolve (DATA_PTR(self)), ZMQ_SUBSCRIBE, subscribe, subscribe_len);
+  if (rc == -1)
+    mrb_sys_fail(mrb, "zsock_set_subscribe");
 
   return self;
+#endif
+  return mrb_nil_value();
 }
 
 static mrb_value
 mrb_zsock_set_unsubscribe(mrb_state *mrb, mrb_value self)
 {
+#ifdef ZMQ_UNSUBSCRIBE
+  if (zsock_type (DATA_PTR(self)) != ZMQ_SUB) {
+    const char *sockname = zsys_sockname (zsock_type (DATA_PTR(self)));
+    mrb_value sockstr = mrb_str_new_static(mrb, sockname, strlen(sockname));
+    mrb_raisef(mrb, E_CZMQ_ERROR, "ZMQ_UNSUBSCRIBE is not valid on %S sockets", sockstr);
+  }
   char *unsubscribe;
+  mrb_int unsubscribe_len;
 
-  mrb_get_args(mrb, "z", &unsubscribe);
+  mrb_get_args(mrb, "s", &unsubscribe, &unsubscribe_len);
 
-  zsock_set_unsubscribe((zsock_t *) DATA_PTR(self), unsubscribe);
+  errno = 0;
+  int rc = zmq_setsockopt (zsock_resolve (DATA_PTR(self)), ZMQ_UNSUBSCRIBE, unsubscribe, unsubscribe_len);
+  if (rc == -1)
+    mrb_sys_fail(mrb, "zsock_set_unsubscribe");
 
   return self;
+#endif
+  return mrb_nil_value();
 }
 
 
