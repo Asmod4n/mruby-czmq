@@ -27,7 +27,7 @@ server_pi = reactor.poller(server) do |server_pi|
 end
 
 client_pi = reactor.poller(client) do |client_pi|
-  puts client_pi.socket.recvx.map(&:to_str)
+  puts client_pi.socket.recvx
 end
 
 reactor.run

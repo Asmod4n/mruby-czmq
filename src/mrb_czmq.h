@@ -56,4 +56,14 @@ static const struct mrb_data_type mrb_pollitem_type = {
   "$i_mrb_pollitem_type", mrb_free
 };
 
+static void
+mrb_zmsg_destroy(mrb_state *mrb, void *p)
+{
+  zmsg_destroy((zmsg_t **) &p);
+}
+
+static const struct mrb_data_type mrb_zmsg_type = {
+  "$i_mrb_zmsg_type", mrb_zmsg_destroy
+};
+
 #endif
