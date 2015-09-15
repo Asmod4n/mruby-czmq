@@ -442,6 +442,30 @@ mrb_zsock_set_unsubscribe(mrb_state* mrb, mrb_value self)
 }
 
 static mrb_value
+mrb_zsock_set_rcvtimeo(mrb_state *mrb, mrb_value self)
+{
+    mrb_int rcvtimeo;
+
+    mrb_get_args(mrb, "i", &rcvtimeo);
+
+    zsock_set_rcvtimeo(DATA_PTR(self), rcvtimeo);
+
+    return self;
+}
+
+static mrb_value
+mrb_zsock_set_sndtimeo(mrb_state *mrb, mrb_value self)
+{
+    mrb_int sndtimeo;
+
+    mrb_get_args(mrb, "i", &sndtimeo);
+
+    zsock_set_sndtimeo(DATA_PTR(self), sndtimeo);
+
+    return self;
+}
+
+static mrb_value
 mrb_zsock_sendx(mrb_state* mrb, mrb_value self)
 {
     mrb_value* argv;
@@ -470,7 +494,7 @@ mrb_zsock_sendx(mrb_state* mrb, mrb_value self)
             for (; argv < argv_end; argv++) {
                 s = mrb_str_to_str(mrb, *argv);
                 mrb_gc_arena_restore(mrb, ai);
-                if (zmsg_addmem(msg, RSTRING_PTR(s), (size_t)RSTRING_LEN(s)) == -1) {
+                if (zmsg_addmem(msg, RSTRING_PTR(s), RSTRING_LEN(s)) == -1) {
                     zmsg_destroy(&msg);
                     mrb_sys_fail(mrb, "zmsg_addmem");
                 }
@@ -1135,7 +1159,7 @@ mrb_zmsg_new(mrb_state* mrb, mrb_value self)
         for (; argv < argv_end; argv++) {
             s = mrb_str_to_str(mrb, *argv);
             mrb_gc_arena_restore(mrb, ai);
-            if (zmsg_addmem(msg, RSTRING_PTR(s), (size_t)RSTRING_LEN(s)) == -1) {
+            if (zmsg_addmem(msg, RSTRING_PTR(s), RSTRING_LEN(s)) == -1) {
                 zmsg_destroy(&msg);
                 mrb_sys_fail(mrb, "zmsg_addmem");
             }
@@ -1247,6 +1271,9 @@ void mrb_mruby_czmq_gem_init(mrb_state* mrb)
     mrb_define_method(mrb, zsock_class, "identity", mrb_zsock_identity, MRB_ARGS_NONE());
     mrb_define_method(mrb, zsock_class, "subscribe=", mrb_zsock_set_subscribe, MRB_ARGS_REQ(1));
     mrb_define_method(mrb, zsock_class, "unsubscribe=", mrb_zsock_set_unsubscribe, MRB_ARGS_REQ(1));
+    mrb_define_method(mrb, zsock_class, "rcvtimeo=", mrb_zsock_set_rcvtimeo, MRB_ARGS_REQ(1));
+    mrb_define_method(mrb, zsock_class, "sndtimeo=", mrb_zsock_set_sndtimeo, MRB_ARGS_REQ(1));
+
 
     zframe_class = mrb_define_class_under(mrb, czmq_mod, "Zframe", mrb->object_class);
     MRB_SET_INSTANCE_TT(zframe_class, MRB_TT_DATA);
