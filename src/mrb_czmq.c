@@ -208,9 +208,8 @@ mrb_zsock_new_from(mrb_state* mrb, mrb_value self)
             zsock, &mrb_zsock_actor_type));
     }
     else {
-        mrb_value foo = mrb_obj_value(mrb_obj_alloc(mrb, MRB_TT_DATA, mrb_class_ptr(self)));
-        DATA_PTR(foo) = zsock;
-        return foo;
+        return mrb_obj_value(mrb_data_object_alloc(mrb, mrb_class_ptr(self),
+            zsock, NULL));
     }
 }
 
@@ -617,8 +616,10 @@ mrb_zframe_send(mrb_state* mrb, mrb_value self)
     errno = 0;
     size_t _size = zframe_size((zframe_t*)DATA_PTR(self));
 
-    if (zframe_send((zframe_t**)&DATA_PTR(self), zsock_actor, (int)flags) == 0)
+    if (zframe_send((zframe_t**)&DATA_PTR(self), zsock_actor, (int)flags) == 0) {
+        DATA_TYPE(self) = NULL;
         return mrb_fixnum_value(_size);
+    }
     else
         mrb_sys_fail(mrb, "zframe_send");
 
@@ -650,8 +651,8 @@ mrb_zsock_recvx(mrb_state* mrb, mrb_value self)
         MRB_TRY(&c_jmp)
         {
             mrb->jmp = &c_jmp;
-            int ai = mrb_gc_arena_save(mrb);
             msgs = mrb_ary_new_capa(mrb, zmsg_size(msg));
+            int ai = mrb_gc_arena_save(mrb);
             zframe = zmsg_pop(msg);
             while (zframe) {
                 mrb_value s = mrb_str_new(mrb, zframe_data(zframe), zframe_size(zframe));
@@ -867,14 +868,14 @@ mrb_zconfig_comments(mrb_state* mrb, mrb_value self)
 
     comments = zconfig_comments((zconfig_t*)DATA_PTR(self));
     if (comments) {
-        int ai = mrb_gc_arena_save(mrb);
         comments_obj = mrb_ary_new_capa(mrb, zlist_size(comments));
+        int ai = mrb_gc_arena_save(mrb);
 
         s = (const char*)zlist_first(comments);
         while (s) {
             mrb_ary_push(mrb, comments_obj, mrb_str_new_cstr(mrb, s));
-            s = (const char*)zlist_next(comments);
             mrb_gc_arena_restore(mrb, ai);
+            s = (const char*)zlist_next(comments);
         }
 
         return comments_obj;
@@ -980,8 +981,10 @@ mrb_pollitem_new(mrb_state* mrb, mrb_value self)
         pollitem->socket = mrb_cptr(socket_or_fd);
         break;
     case MRB_TT_DATA: {
-        if (mrb_respond_to(mrb, socket_or_fd, mrb_intern_lit(mrb, "fileno")))
-            pollitem->fd = mrb_int(mrb, mrb_funcall(mrb, socket_or_fd, "fileno", 0, NULL));
+        if (mrb_respond_to(mrb, socket_or_fd, mrb_intern_lit(mrb, "fileno"))) {
+            mrb_value fileno = mrb_funcall(mrb, socket_or_fd, "fileno", 0);
+            pollitem->fd = mrb_int(mrb, fileno);
+        }
         else
             pollitem->socket = mrb_czmq_resolve_sock(mrb, DATA_PTR(socket_or_fd));
     } break;
@@ -1120,17 +1123,16 @@ mrb_zmsg_new_from(mrb_state* mrb, mrb_value self)
         mrb_raise(mrb, E_ARGUMENT_ERROR, "zmsg must be a c pointer");
 
     void* zmsg = mrb_cptr(zmsg_value);
-    assert(zmsg);
-    assert(zmsg_is(zmsg));
+    mrb_assert(zmsg);
+    mrb_assert(zmsg_is(zmsg));
 
     if (fresh) {
         return mrb_obj_value(mrb_data_object_alloc(mrb, mrb_class_ptr(self),
             zmsg, &mrb_zmsg_type));
     }
     else {
-        mrb_value foo = mrb_obj_value(mrb_obj_alloc(mrb, MRB_TT_DATA, mrb_class_ptr(self)));
-        DATA_PTR(foo) = zmsg;
-        return foo;
+        return mrb_obj_value(mrb_data_object_alloc(mrb, mrb_class_ptr(self),
+            zmsg, NULL));
     }
 }
 
@@ -1173,8 +1175,8 @@ static mrb_value
 mrb_zmsg_to_ary(mrb_state* mrb, mrb_value self)
 {
     zmsg_t* msg = (zmsg_t*)DATA_PTR(self);
-    int ai = mrb_gc_arena_save(mrb);
     mrb_value msgs = mrb_ary_new_capa(mrb, zmsg_size(msg));
+    int ai = mrb_gc_arena_save(mrb);
     zframe_t* zframe = zmsg_first(msg);
     while (zframe) {
         mrb_value s = mrb_str_new(mrb, zframe_data(zframe), zframe_size(zframe));
