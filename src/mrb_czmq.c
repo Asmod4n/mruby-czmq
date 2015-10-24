@@ -1,4 +1,4 @@
-﻿#include "mruby/czmq.h"
+#include "mruby/czmq.h"
 #include "mrb_czmq.h"
 
 static mrb_value
@@ -1061,7 +1061,10 @@ mrb_zmq_poll(mrb_state* mrb, mrb_value self)
 
     switch (rc) {
     case -1:
-        mrb_sys_fail(mrb, "zmq_poll");
+        if (zsys_interrupted)
+            return mrb_false_value();
+        else
+            mrb_sys_fail(mrb, "zmq_poll");
         break;
     case 0:
         return mrb_nil_value();
