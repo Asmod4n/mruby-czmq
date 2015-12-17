@@ -492,11 +492,11 @@ mrb_zsock_sendx(mrb_state* mrb, mrb_value self)
             int ai = mrb_gc_arena_save(mrb);
             for (; argv < argv_end; argv++) {
                 s = mrb_str_to_str(mrb, *argv);
-                mrb_gc_arena_restore(mrb, ai);
                 if (zmsg_addmem(msg, RSTRING_PTR(s), RSTRING_LEN(s)) == -1) {
                     zmsg_destroy(&msg);
                     mrb_sys_fail(mrb, "zmsg_addmem");
                 }
+                mrb_gc_arena_restore(mrb, ai);
             }
             if (zmsg_send(&msg, DATA_PTR(self)) == -1) {
                 zmsg_destroy(&msg);
@@ -638,9 +638,9 @@ mrb_zframe_more(mrb_state* mrb, mrb_value self)
 static mrb_value
 mrb_zsock_recvx(mrb_state* mrb, mrb_value self)
 {
-    zmsg_t* msg;
+    zmsg_t* msg = NULL;
     mrb_value msgs;
-    zframe_t* zframe;
+    zframe_t* zframe = NULL;
 
     errno = 0;
 
@@ -1061,7 +1061,7 @@ mrb_zmq_poll(mrb_state* mrb, mrb_value self)
 
     switch (rc) {
     case -1:
-        if (zsys_interrupted)
+        if (zsys_interrupted || errno == EINTR)
             return mrb_false_value();
         else
             mrb_sys_fail(mrb, "zmq_poll");
@@ -1098,7 +1098,7 @@ static mrb_value
 mrb_actor_new(mrb_state* mrb, mrb_value self)
 {
     mrb_value mrb_actor_obj;
-    char* mrb_actor_args = NULL;
+    const char* mrb_actor_args = NULL;
 
     mrb_get_args(mrb, "o|z!", &mrb_actor_obj, &mrb_actor_args);
 
@@ -1163,11 +1163,11 @@ mrb_zmsg_new(mrb_state* mrb, mrb_value self)
         argv_end = argv + argc;
         for (; argv < argv_end; argv++) {
             s = mrb_str_to_str(mrb, *argv);
-            mrb_gc_arena_restore(mrb, ai);
             if (zmsg_addmem(msg, RSTRING_PTR(s), RSTRING_LEN(s)) == -1) {
                 zmsg_destroy(&msg);
                 mrb_sys_fail(mrb, "zmsg_addmem");
             }
+            mrb_gc_arena_restore(mrb, ai);
         }
     }
 
