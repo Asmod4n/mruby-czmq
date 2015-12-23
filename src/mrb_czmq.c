@@ -713,7 +713,7 @@ mrb_zactor_new_zgossip(mrb_state* mrb, mrb_value self)
     char* prefix = NULL;
     zactor_t* zactor;
 
-    mrb_get_args(mrb, "|z", &prefix);
+    mrb_get_args(mrb, "|z!", &prefix);
 
     errno = 0;
 
@@ -838,7 +838,7 @@ mrb_zconfig_resolve(mrb_state* mrb, mrb_value self)
 {
     char *path, *default_value = NULL, *value;
 
-    mrb_get_args(mrb, "z|z", &path, &default_value);
+    mrb_get_args(mrb, "z|z!", &path, &default_value);
 
     value = zconfig_resolve((zconfig_t*)DATA_PTR(self), path, default_value);
     if (value)
@@ -1013,9 +1013,7 @@ mrb_pollitem_socket(mrb_state* mrb, mrb_value self)
 static mrb_value
 mrb_pollitem_events(mrb_state* mrb, mrb_value self)
 {
-    zmq_pollitem_t* pollitem = (zmq_pollitem_t*)DATA_PTR(self);
-
-    return mrb_fixnum_value(pollitem->events);
+    return mrb_fixnum_value(((zmq_pollitem_t*)DATA_PTR(self))->events);
 }
 
 static mrb_value
@@ -1027,6 +1025,9 @@ mrb_pollitem_set_events(mrb_state* mrb, mrb_value self)
 
     mrb_get_args(mrb, "i", &events);
 
+    if (events < SHRT_MIN || events > SHRT_MAX)
+        mrb_raise(mrb, E_RANGE_ERROR, "events are out of range");
+
     pollitem->events = events;
 
     return self;
@@ -1035,9 +1036,7 @@ mrb_pollitem_set_events(mrb_state* mrb, mrb_value self)
 static mrb_value
 mrb_pollitem_revents(mrb_state* mrb, mrb_value self)
 {
-    zmq_pollitem_t* pollitem = (zmq_pollitem_t*)DATA_PTR(self);
-
-    return mrb_fixnum_value(pollitem->revents);
+    return mrb_fixnum_value(((zmq_pollitem_t*)DATA_PTR(self))->revents);
 }
 
 static mrb_value
@@ -1115,6 +1114,25 @@ mrb_actor_new(mrb_state* mrb, mrb_value self)
 }
 
 static mrb_value
+mrb_zmsg_recv(mrb_state* mrb, mrb_value self)
+{
+    void* zsock_actor;
+    zmsg_t* zmsg;
+
+    mrb_get_args(mrb, "d", &zsock_actor, &mrb_zsock_actor_type);
+
+    errno = 0;
+    zmsg = zmsg_recv(zsock_actor);
+    if (zmsg)
+        return mrb_obj_value(mrb_data_object_alloc(mrb, mrb_class_ptr(self),
+            zmsg, &mrb_zmsg_type));
+    else
+        mrb_sys_fail(mrb, "zmsg_recv");
+
+    return self;
+}
+
+static mrb_value
 mrb_zmsg_new_from(mrb_state* mrb, mrb_value self)
 {
     mrb_value zmsg_value;
@@ -1172,6 +1190,24 @@ mrb_zmsg_new(mrb_state* mrb, mrb_value self)
     }
 
     return self;
+}
+
+static mrb_value
+mrb_zmsg_send(mrb_state* mrb, mrb_value self)
+{
+    void* zsock_actor;
+
+    mrb_get_args(mrb, "d", &zsock_actor, &mrb_zsock_actor_type);
+
+    errno = 0;
+    int rc = zmsg_send((zmsg_t**) &DATA_PTR(self), zsock_actor);
+    if (rc == 0) {
+        DATA_TYPE(self) = NULL;
+    } else {
+        mrb_sys_fail(mrb, "zmsg_send");
+    }
+
+    return mrb_nil_value();
 }
 
 static mrb_value
@@ -1330,7 +1366,9 @@ void mrb_mruby_czmq_gem_init(mrb_state* mrb)
     zmsg_class = mrb_define_class_under(mrb, czmq_mod, "Zmsg", mrb->object_class);
     MRB_SET_INSTANCE_TT(zmsg_class, MRB_TT_DATA);
     mrb_define_class_method(mrb, zmsg_class, "new_from", mrb_zmsg_new_from, MRB_ARGS_ARG(1, 1));
+    mrb_define_class_method(mrb, zmsg_class, "recv", mrb_zmsg_recv, MRB_ARGS_REQ(1));
     mrb_define_method(mrb, zmsg_class, "initialize", mrb_zmsg_new, MRB_ARGS_OPT(1));
+    mrb_define_method(mrb, zmsg_class, "send", mrb_zmsg_send, MRB_ARGS_REQ(1));
     mrb_define_method(mrb, zmsg_class, "to_ary", mrb_zmsg_to_ary, MRB_ARGS_NONE());
 
 #ifdef __WINDOWS__

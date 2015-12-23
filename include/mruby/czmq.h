@@ -7,7 +7,7 @@
 extern "C" {
 #endif
 
-#define E_CZMQ_ERROR mrb_class_get_under(mrb, mrb_module_get(mrb, "CZMQ"), "Error")
+#define E_CZMQ_ERROR (mrb_class_get_under(mrb, mrb_module_get(mrb, "CZMQ"), "Error"))
 
 #ifdef __cplusplus
 }

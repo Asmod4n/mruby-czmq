@@ -12,7 +12,7 @@ module ZMQ
       (revents & POLLERR) != 0
     end
 
-    if const_defined?(:POLLPRI)
+    if const_defined?("POLLPRI")
       def priority?
         (revents & POLLPRI) != 0
       end
