@@ -33,6 +33,10 @@ module CZMQ
         @times = times
       end
 
+      def reset
+        @when = Zclock.mono + @delay
+      end
+
       def call
         @block.call(self)
         if @times > 0 && (@times -= 1) == 0
