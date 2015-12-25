@@ -236,6 +236,17 @@ mrb_zsock_new(mrb_state* mrb, mrb_value self)
 }
 
 static mrb_value
+mrb_zsock_destroy(mrb_state* mrb, mrb_value self)
+{
+    if (DATA_TYPE(self) != NULL) {
+        zsock_destroy((zsock_t**)&DATA_PTR(self));
+        DATA_TYPE(self) = NULL;
+    }
+
+    return mrb_nil_value();
+}
+
+static mrb_value
 mrb_zsock_bind(mrb_state* mrb, mrb_value self)
 {
     char* endpoint;
@@ -1114,6 +1125,17 @@ mrb_actor_new(mrb_state* mrb, mrb_value self)
 }
 
 static mrb_value
+mrb_zactor_destroy(mrb_state* mrb, mrb_value self)
+{
+    if (DATA_TYPE(self) != NULL) {
+        zactor_destroy((zactor_t**)&DATA_PTR(self));
+        DATA_TYPE(self) = NULL;
+    }
+
+    return mrb_nil_value();
+}
+
+static mrb_value
 mrb_zmsg_recv(mrb_state* mrb, mrb_value self)
 {
     void* zsock_actor;
@@ -1301,6 +1323,7 @@ void mrb_mruby_czmq_gem_init(mrb_state* mrb)
     zsock_class = mrb_define_class_under(mrb, czmq_mod, "Zsock", zsock_actor_class);
     mrb_define_class_method(mrb, zsock_class, "new_from", mrb_zsock_new_from, MRB_ARGS_ARG(1, 1));
     mrb_define_method(mrb, zsock_class, "initialize", mrb_zsock_new, MRB_ARGS_REQ(1));
+    mrb_define_method(mrb, zsock_class, "destroy", mrb_zsock_destroy, MRB_ARGS_NONE());
     mrb_define_method(mrb, zsock_class, "bind", mrb_zsock_bind, MRB_ARGS_REQ(1));
     mrb_define_method(mrb, zsock_class, "unbind", mrb_zsock_unbind, MRB_ARGS_REQ(1));
     mrb_define_method(mrb, zsock_class, "connect", mrb_zsock_connect, MRB_ARGS_REQ(1));
@@ -1332,6 +1355,7 @@ void mrb_mruby_czmq_gem_init(mrb_state* mrb)
 
     zactor_class = mrb_define_class_under(mrb, czmq_mod, "Zactor", zsock_actor_class);
     mrb_define_method(mrb, zactor_class, "initialize", mrb_actor_new, MRB_ARGS_REQ(1));
+    mrb_define_class_method(mrb, zactor_class, "destroy", mrb_zactor_destroy, MRB_ARGS_NONE());
     mrb_define_class_method(mrb, zactor_class, "new_zauth", mrb_zactor_new_zauth, MRB_ARGS_NONE());
     mrb_define_class_method(mrb, zactor_class, "new_zbeacon", mrb_zactor_new_zbeacon, MRB_ARGS_NONE());
     mrb_define_class_method(mrb, zactor_class, "new_zgossip", mrb_zactor_new_zgossip, MRB_ARGS_OPT(1));
