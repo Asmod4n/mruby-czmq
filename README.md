@@ -1,5 +1,9 @@
 ﻿# mruby-czmq
 
+Deprecation Notice
+==================
+czmq doesn't play well together with mruby, there is no way to close mruby with it if you have multiple mruby instances in a process and use blocking operations. I am currently writing a binding for libzmq directly: https://github.com/Asmod4n/mruby-zmq, the functionality of the different czmq bundled actors might be extraced into different gems and adopted for use for mruby-zmq.
+
 Prerequirements
 ===============
 You need to have czmq installed on your system, build and installation instructions: https://github.com/zeromq/czmq#building-and-installing
