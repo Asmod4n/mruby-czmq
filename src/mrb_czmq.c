@@ -8,7 +8,7 @@ mrb_zclock_sleep(mrb_state* mrb, mrb_value self)
 
     mrb_get_args(mrb, "i", &msecs);
 
-    if (msecs < INT_MIN || msecs > INT_MAX)
+    if (msecs < INT_MIN||msecs > INT_MAX)
         mrb_raise(mrb, E_RANGE_ERROR, "msecs is out of range");
 
     zclock_sleep(msecs);
@@ -221,7 +221,7 @@ mrb_zsock_new(mrb_state* mrb, mrb_value self)
 
     mrb_get_args(mrb, "i", &type);
 
-    if (type < INT_MIN || type > INT_MAX)
+    if (type < INT_MIN||type > INT_MAX)
         mrb_raise(mrb, E_RANGE_ERROR, "type is ouf of range");
 
     errno = 0;
@@ -238,10 +238,8 @@ mrb_zsock_new(mrb_state* mrb, mrb_value self)
 static mrb_value
 mrb_zsock_destroy(mrb_state* mrb, mrb_value self)
 {
-    if (DATA_TYPE(self) != NULL) {
-        zsock_destroy((zsock_t**)&DATA_PTR(self));
-        DATA_TYPE(self) = NULL;
-    }
+    zsock_destroy((zsock_t**)&DATA_PTR(self));
+    DATA_TYPE(self) = NULL;
 
     return mrb_nil_value();
 }
@@ -350,7 +348,7 @@ mrb_zsock_signal(mrb_state* mrb, mrb_value self)
 
     mrb_get_args(mrb, "|i", &status);
 
-    if (status < 0 || status > UCHAR_MAX)
+    if (status < 0||status > UCHAR_MAX)
         mrb_raise(mrb, E_RANGE_ERROR, "status is out of range");
 
     errno = 0;
@@ -621,7 +619,7 @@ mrb_zframe_send(mrb_state* mrb, mrb_value self)
 
     mrb_get_args(mrb, "d|i", &zsock_actor, &mrb_zsock_actor_type, &flags);
 
-    if (flags < 0 || flags > INT_MAX)
+    if (flags < 0||flags > INT_MAX)
         mrb_raise(mrb, E_RANGE_ERROR, "flags are out of range");
 
     errno = 0;
@@ -961,7 +959,7 @@ mrb_zconfig_has_changed(mrb_state* mrb, mrb_value self)
         return mrb_false_value();
 }
 
-static inline void*
+MRB_INLINE void*
 mrb_czmq_resolve_sock(mrb_state* mrb, void* self)
 {
     assert(self);
@@ -981,7 +979,7 @@ mrb_pollitem_new(mrb_state* mrb, mrb_value self)
 
     mrb_get_args(mrb, "|oi", &socket_or_fd, &events);
 
-    if (events < SHRT_MIN || events > SHRT_MAX)
+    if (events < SHRT_MIN||events > SHRT_MAX)
         mrb_raise(mrb, E_RANGE_ERROR, "events are out of range");
 
     zmq_pollitem_t* pollitem = mrb_calloc(mrb, 1, sizeof(zmq_pollitem_t));
@@ -1036,7 +1034,7 @@ mrb_pollitem_set_events(mrb_state* mrb, mrb_value self)
 
     mrb_get_args(mrb, "i", &events);
 
-    if (events < SHRT_MIN || events > SHRT_MAX)
+    if (events < SHRT_MIN||events > SHRT_MAX)
         mrb_raise(mrb, E_RANGE_ERROR, "events are out of range");
 
     pollitem->events = events;
@@ -1058,7 +1056,7 @@ mrb_zmq_poll(mrb_state* mrb, mrb_value self)
 
     mrb_get_args(mrb, "ai", &pollitems_obj, &pollitems_len, &timeout);
 
-    if (timeout * ZMQ_POLL_MSEC < LONG_MIN || timeout * ZMQ_POLL_MSEC > LONG_MAX)
+    if (timeout * ZMQ_POLL_MSEC < LONG_MIN||timeout * ZMQ_POLL_MSEC > LONG_MAX)
         mrb_raise(mrb, E_RANGE_ERROR, "timeout is out of range");
 
     zmq_pollitem_t pollitems[pollitems_len];
@@ -1071,7 +1069,7 @@ mrb_zmq_poll(mrb_state* mrb, mrb_value self)
 
     switch (rc) {
     case -1:
-        if (zsys_interrupted || errno == EINTR)
+        if (zsys_interrupted||zmq_errno() == EINTR)
             return mrb_false_value();
         else
             mrb_sys_fail(mrb, "zmq_poll");
